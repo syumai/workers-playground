@@ -17,6 +17,12 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
   const cache = caches.default;
   const cachedRes = await cache.match(req.url);
   if (cachedRes) {
+    const etag = req.headers.get("If-None-Match");
+    if (etag !== null && etag === cachedRes.headers.get("ETag")) {
+      return new Response(null, {
+        status: 304,
+      });
+    }
     return cachedRes;
   }
   const imgObj = await BUCKET.get(imgPath);
@@ -29,6 +35,7 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
   const res = new Response(imgObj.body, {
     headers: {
       "Cache-Control": "public, max-age=14400",
+      ETag: `W/${imgObj.httpEtag}`,
       "Content-Type":
         imgObj.httpMetadata.contentType ?? "application/octet-stream",
     },
