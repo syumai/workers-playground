@@ -11,9 +11,6 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
     });
   }
 
-  const url = new URL(req.url);
-  const imgPath = url.pathname.slice(1);
-
   const cache = caches.default;
   const cachedRes = await cache.match(req.url);
   if (cachedRes) {
@@ -26,6 +23,9 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
     }
     return cachedRes;
   }
+
+  const url = new URL(req.url);
+  const imgPath = url.pathname.slice(1);
   const imgObj = await BUCKET.get(imgPath);
 
   if (imgObj === null) {
