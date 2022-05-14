@@ -1,0 +1,11 @@
+name = "r2-image-viewer"
+main = "src/index.ts"
+compatibility_date = "2022-05-14"
+
+account_id = "5ed0b0e0978daf260b9f5a2323af0fb5"
+workers_dev = true
+
+[[r2_buckets]]
+binding = 'BUCKET'
+bucket_name = 'r2-image-viewer'
+preview_bucket_name = 'r2-image-viewer-dev'
