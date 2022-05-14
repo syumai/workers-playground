@@ -21,6 +21,7 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
     if (etag !== null && etag === cachedRes.headers.get("ETag")) {
       return new Response(null, {
         status: 304,
+        headers: cachedRes.headers,
       });
     }
     return cachedRes;
