@@ -29,7 +29,6 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
   const res = new Response(imgObj.body, {
     headers: {
       "Cache-Control": "public, max-age=14400",
-      Expires: "",
       "Content-Type":
         imgObj.httpMetadata.contentType ?? "application/octet-stream",
     },
