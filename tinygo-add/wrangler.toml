@@ -1,0 +1,6 @@
+name = "tinygo-add"
+main = "./worker.mjs"
+compatibility_date = "2022-05-15"
+
+[build]
+command = "go generate"
