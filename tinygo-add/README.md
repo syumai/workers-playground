@@ -2,11 +2,17 @@
 
 * An example app runnning Go app compiled with tinygo on Cloudflare Workers.
 
-## Requirements
+## Demo
+
+* https://tinygo-add.syumai.workers.dev/?a=3&b=5
+
+## Development
+
+### Requirements
 
 * tinygo
 
-## Development
+### Commands
 
 ```
 # start dev server
