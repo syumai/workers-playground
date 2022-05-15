@@ -11,8 +11,11 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
     });
   }
 
+  const url = new URL(req.url);
+
+  const cacheKey = new Request(url.toString(), req);
   const cache = caches.default;
-  const cachedRes = await cache.match(req.url);
+  const cachedRes = await cache.match(cacheKey);
   if (cachedRes) {
     const etag = req.headers.get("If-None-Match");
     if (etag !== null && etag === cachedRes.headers.get("ETag")) {
@@ -24,7 +27,6 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
     return cachedRes;
   }
 
-  const url = new URL(req.url);
   const imgPath = url.pathname.slice(1);
   const imgObj = await BUCKET.get(imgPath);
 
@@ -41,7 +43,7 @@ async function handleRequest(event: FetchEvent): Promise<Response> {
         imgObj.httpMetadata.contentType ?? "application/octet-stream",
     },
   });
-  event.waitUntil(cache.put(req.url, res.clone()));
+  event.waitUntil(cache.put(cacheKey, res.clone()));
 
   return res;
 }
