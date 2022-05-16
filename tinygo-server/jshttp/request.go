@@ -9,19 +9,19 @@ import (
 	"syscall/js"
 )
 
-// ToBody converts JavaScripts sides ReadableStream (can be null) to io.ReadCloser.
+// toBody converts JavaScripts sides ReadableStream (can be null) to io.ReadCloser.
 // * ReadableStream: https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream
-func ToBody(streamOrNull js.Value) io.ReadCloser {
+func toBody(streamOrNull js.Value) io.ReadCloser {
 	if streamOrNull.IsNull() {
 		return nil
 	}
 	sr := streamOrNull.Call("getReader")
-	return io.NopCloser(readerFromStreamReader(sr))
+	return io.NopCloser(convertStreamReaderToReader(sr))
 }
 
-// ToHeader converts JavaScript sides Headers to http.Header.
+// toHeader converts JavaScript sides Headers to http.Header.
 // * Headers: https://developer.mozilla.org/ja/docs/Web/API/Headers
-func ToHeader(headers js.Value) http.Header {
+func toHeader(headers js.Value) http.Header {
 	entries := arrayFrom(headers.Call("entries"))
 	headerLen := entries.Length()
 	h := http.Header{}
@@ -34,21 +34,21 @@ func ToHeader(headers js.Value) http.Header {
 	return h
 }
 
-// ToRequest converts JavaScript sides Request to *http.Request.
+// toRequest converts JavaScript sides Request to *http.Request.
 // * Request: https://developer.mozilla.org/ja/docs/Web/API/Request
-func ToRequest(req js.Value) (*http.Request, error) {
+func toRequest(req js.Value) (*http.Request, error) {
 	reqUrl, err := url.Parse(req.Get("url").String())
 	if err != nil {
 		return nil, err
 	}
-	header := ToHeader(req)
+	header := toHeader(req.Get("headers"))
 	// ignore err
 	contentLength, _ := strconv.ParseInt(header.Get("Content-Length"), 10, 64)
 	return &http.Request{
 		Method:           req.Get("method").String(),
 		URL:              reqUrl,
 		Header:           header,
-		Body:             ToBody(req.Get("body")),
+		Body:             toBody(req.Get("body")),
 		ContentLength:    contentLength,
 		TransferEncoding: strings.Split(header.Get("Transfer-Encoding"), ","),
 		Host:             header.Get("Host"),
