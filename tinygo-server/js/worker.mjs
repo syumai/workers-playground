@@ -1,6 +1,6 @@
 import "./polyfill/performance.mjs";
 import "./wasm_exec.js";
-import mod from "./dist/app.wasm";
+import mod from "../dist/app.wasm";
 
 const go = new Go();
 

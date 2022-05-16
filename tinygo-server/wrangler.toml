@@ -1,6 +1,6 @@
 name = "tinygo-server"
-main = "./worker.mjs"
+main = "./js/worker.mjs"
 compatibility_date = "2022-05-15"
 
 [build]
-command = "go generate"
+command = "make build"

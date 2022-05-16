@@ -1,4 +1,4 @@
-package jshttp
+package workers
 
 import "syscall/js"
 
