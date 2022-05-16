@@ -1,4 +1,4 @@
-module github.com/syumai/workers-playground/tinygo
+module github.com/syumai/workers-playground/tinygo-server
 
 go 1.18
 

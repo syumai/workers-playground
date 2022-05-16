@@ -1,6 +1,6 @@
 # tinygo-server
 
-* A simple JSON server implemented in Go and compiled with tinygo.
+* A simple HTTP JSON server implemented in Go and compiled with tinygo.
 
 ## Example
 

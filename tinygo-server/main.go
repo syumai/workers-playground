@@ -3,8 +3,8 @@ package main
 import (
 	"net/http"
 
-	"github.com/syumai/workers-playground/tinygo/app"
-	"github.com/syumai/workers-playground/tinygo/workers"
+	"github.com/syumai/workers-playground/tinygo-server/app"
+	"github.com/syumai/workers-playground/tinygo-server/workers"
 )
 
 func main() {
