@@ -3,9 +3,10 @@ package app
 
 import (
 	"fmt"
-	"github.com/mailru/easyjson"
 	"net/http"
 	"os"
+
+	"github.com/mailru/easyjson"
 )
 
 //easyjson:json
