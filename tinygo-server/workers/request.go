@@ -42,6 +42,7 @@ func toRequest(req js.Value) (*http.Request, error) {
 		return nil, err
 	}
 	header := toHeader(req.Get("headers"))
+
 	// ignore err
 	contentLength, _ := strconv.ParseInt(header.Get("Content-Length"), 10, 64)
 	return &http.Request{

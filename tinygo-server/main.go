@@ -8,5 +8,6 @@ import (
 )
 
 func main() {
-	workers.Serve(http.HandlerFunc(app.HelloHandler))
+	http.HandleFunc("/hello", app.HelloHandler)
+	workers.Serve(nil) // use http.DefaultServeMux
 }

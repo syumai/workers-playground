@@ -9,7 +9,7 @@
 ### Request
 
 ```
-curl --location --request POST 'https://tinygo-server.syumai.workers.dev' \
+curl --location --request POST 'https://tinygo-server.syumai.workers.dev/hello' \
 --header 'Content-Type: application/json' \
 --data-raw '{
     "name": "syumai"
