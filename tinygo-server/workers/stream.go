@@ -62,11 +62,3 @@ func convertStreamReaderToReader(sr js.Value) io.Reader {
 		streamReader: sr,
 	}
 }
-
-// readerToStreamReader implements ReadableStreamDefaultReader sourced from io.ReadCloser.
-type readerToStreamReader struct {
-	buf        bytes.Buffer
-	readCloser io.ReadCloser
-}
-
-// WIP

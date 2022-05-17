@@ -1,8 +1,8 @@
 package workers
 
 import (
-	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"syscall/js"
 )
@@ -42,13 +42,17 @@ func handleRequest(reqObj js.Value) (js.Value, error) {
 	if err != nil {
 		panic(err)
 	}
-	var buf bytes.Buffer
+	reader, writer := io.Pipe()
 	w := &responseWriterBuffer{
 		header:     http.Header{},
 		statusCode: http.StatusOK,
-		buf:        &buf,
+		PipeReader: reader,
+		PipeWriter: writer,
 	}
-	httpHandler.ServeHTTP(w, req)
+	go func() {
+		defer writer.Close()
+		httpHandler.ServeHTTP(w, req)
+	}()
 	return w.toJSResponse()
 }
 
