@@ -28,6 +28,9 @@ curl --location --request POST 'https://tinygo-server.syumai.workers.dev/hello' 
 
 ### Requirements
 
+This project requires these tools to be installed globally.
+
+* wrangler
 * tinygo
 * [easyjson](https://github.com/mailru/easyjson)
   - `go install github.com/mailru/easyjson/...@latest`
@@ -35,8 +38,9 @@ curl --location --request POST 'https://tinygo-server.syumai.workers.dev/hello' 
 ### Commands
 
 ```
-npm start  # run local server
-make build # build Go Wasm binary
+wrangler dev     # run dev server
+wrangler build   # build Go Wasm binary
+wrangler publish # publish worker
 ```
 
 ## Author
