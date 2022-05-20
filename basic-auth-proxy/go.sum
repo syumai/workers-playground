@@ -1,0 +1,7 @@
+github.com/alphahorizonio/tinynet v0.0.0-20210118222949-51439cf30be8 h1:rvLGKNThMaCpWuzmd06PysP79Jh3fbYOzcn1m9n0jGE=
+github.com/alphahorizonio/tinynet v0.0.0-20210118222949-51439cf30be8/go.mod h1:0dKCYogxMb7VP7L/P2pauztI39BgzjQ/Y1QIkljNYi0=
+github.com/alphahorizonio/unisockets v0.1.1 h1:LNR3Uy+xm09zlj0QGlrDw2ljF80/4J/nbfvpqBeXSpM=
+github.com/alphahorizonio/unisockets v0.1.1/go.mod h1:GHmI67/4EW9Jx+d1QiytJOHXnlI127uErrRgIHzwBB4=
+github.com/syumai/workers v0.1.1 h1:0wdtuhl7fHSCCyPBbHFDnAb00DOb0GcAPAQRmbWfiUM=
+github.com/syumai/workers v0.1.1/go.mod h1:alXIDhTyeTwSzh0ZgQ3cb9HQPyyYfIejupE4Z3efr14=
+github.com/valyala/fastjson v1.6.3/go.mod h1:CLCAqky6SMuOcxStkYQvblddUtoRxhYMGLrsQns1aXY=
