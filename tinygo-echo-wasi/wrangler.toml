@@ -1,0 +1,4 @@
+name = "tinygo-echo-wasi"
+compatibility_date = "2022-07-10"
+
+main = "./dist/app.wasm"
