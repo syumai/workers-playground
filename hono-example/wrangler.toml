@@ -1,0 +1,10 @@
+name = "hono-example"
+compatibility_date = "2022-07-30"
+
+main = "./index"
+
+[[kv_namespaces]]
+binding = "COUNTER"
+id = "01c45c5fc10f4369815d9e4767e909fa"
+preview_id = "81568a410a4c40efad6be3fb5c8f340f"
+
