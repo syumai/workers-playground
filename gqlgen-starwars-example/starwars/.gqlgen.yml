@@ -1,0 +1,17 @@
+schema:
+  - schema.graphql
+exec:
+  filename: generated/exec.go
+model:
+  filename: models/generated.go
+
+autobind:
+  - github.com/syumai/workers-playground/gqlgen-starwars-example/starwars/models
+
+models:
+  ReviewInput:
+    model: models.Review
+  Starship:
+    fields:
+      length:
+        resolver: true
