@@ -1,6 +1,8 @@
 # connect-go-emoji-server
 
 * Simple web server which returns emoji from name.
+* This project requires paid plan of Cloudflare Workers.
+  - See: [worker-template-go](https://github.com/syumai/worker-template-go).
 
 ## Demo
 
