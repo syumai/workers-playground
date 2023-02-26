@@ -40,9 +40,11 @@ $ https post emoji.syum.ai/emoji.v1.EmojiService/GetEmoji short_name=apple | gzi
 ### Commands
 
 ```
-make dev     # run dev server
-make build   # build Go Wasm binary
-make publish # publish worker
+make dev      # run dev server
+make build    # build Go Wasm binary
+make publish  # publish worker
+make generate # generate code from proto
+make fmt      # format proto
 ```
 
 
