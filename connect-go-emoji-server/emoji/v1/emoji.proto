@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package emoji.v1;
+
+option go_package = "github.com/syumai/workers-playground/connect-go-emoji-server/gen/emoji/v1;emojiv1";
+
+message GetEmojiRequest {
+  string short_name = 1;
+}
+
+message Emoji {
+  string short_name = 1;
+  string emoji = 2;
+}
+
+message GetEmojiResponse {
+  Emoji emoji = 1;
+}
+
+service EmojiService {
+  rpc GetEmoji(GetEmojiRequest) returns (GetEmojiResponse) {}
+}
