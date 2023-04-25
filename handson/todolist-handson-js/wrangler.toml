@@ -1,0 +1,6 @@
+name = "todolist-handson-js"
+main = "src/index.js"
+compatibility_date = "2023-04-25"
+kv_namespaces = [
+  { binding = "TODO_LIST", id = "127114d2a75042b78bfeb1cdf17baa6d" }
+]

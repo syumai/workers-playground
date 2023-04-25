@@ -1,0 +1,6 @@
+name = "todowrangler"
+main = "src/index.ts"
+compatibility_date = "2023-04-25"
+kv_namespaces = [
+  { binding = "TODO_WRANGLER", id = "e15b56526b324e9195160aa977e7738e" }
+]
