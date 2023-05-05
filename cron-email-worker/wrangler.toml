@@ -1,0 +1,9 @@
+name = "cron-email-worker"
+main = "./index.js"
+compatibility_date = "2022-05-03"
+send_email = [
+  {type = "send_email", name = "SEB", destination_address = "syumai+syum.ai@gmail.com"},
+]
+
+[triggers]
+crons = ["0 * * * *"] # 1 email per hour

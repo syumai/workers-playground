@@ -1,0 +1,14 @@
+{
+	"name": "cron-email-worker",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler publish index.js"
+	},
+	"devDependencies": {
+		"wrangler": "^2.0.0"
+	},
+	"dependencies": {
+		"mimetext": "^3.0.6"
+	}
+}
