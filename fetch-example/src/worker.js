@@ -10,8 +10,13 @@
 
 export default {
   async fetch(request, env, ctx) {
-    const resp = await fetch("https://syum.ai")
-    const body = await resp.text()
+    const req = new Request('https://syum.ai', {
+      method: 'GET',
+      headers: {},
+      body: undefined,
+    });
+    const resp = await globalThis.fetch(req, {});
+    const body = await resp.text();
     return new Response(body);
   },
 };
