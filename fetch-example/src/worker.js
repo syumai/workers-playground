@@ -9,9 +9,9 @@
  */
 
 export default {
-	async fetch(request, env, ctx) {
+  async fetch(request, env, ctx) {
     const resp = await fetch("https://syum.ai")
     const body = await resp.text()
-		return new Response(body);
-	},
+    return new Response(body);
+  },
 };
