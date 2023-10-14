@@ -1,5 +1,5 @@
 name = "connect-go-emoji-server"
-main = "./js/worker.mjs"
+main = "./build/worker.mjs"
 compatibility_date = "2022-11-19"
 compatibility_flags = [
     "streams_enable_constructors"
