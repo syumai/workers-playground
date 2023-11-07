@@ -1,0 +1,6 @@
+name = "pages-example-tinygo"
+compatibility_date = "2023-04-30"
+
+[build]
+command = "make build"
+
