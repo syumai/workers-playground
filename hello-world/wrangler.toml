@@ -1,5 +1,5 @@
 name = "hello-world"
-main = "src/index.ts"
+main = "src/index.js"
 compatibility_date = "2023-10-30"
 
 # Variable bindings. These are arbitrary, plaintext strings (similar to environment variables)
