@@ -1,0 +1,11 @@
+{
+  "name": "hello-world-pages",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler pages deploy ./public"
+  },
+  "devDependencies": {
+    "wrangler": "^3.19.0"
+  }
+}
