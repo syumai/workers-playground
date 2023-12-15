@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "deploy": "wrangler pages deploy ./public"
+    "deploy": "wrangler pages deploy ./public",
+    "dev": "wrangler pages dev --compatibility-date=2023-12-10 ./public"
   },
   "devDependencies": {
     "wrangler": "^3.19.0"

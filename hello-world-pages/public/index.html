@@ -2,7 +2,14 @@
 <html>
 <head><title>Hello World example</title></head>
 <body>
-Hello World!
+<div>Hello World!</div>
+<div id="counter"></div>
+<script type="module">
+  const res = await fetch("/counter");
+  const result = await res.json();
+  const counter = document.getElementById("counter");
+  counter.textContent = `Count: ${result.count}`;
+</script>
 </body>
 </html>
 
