@@ -1,9 +1,6 @@
 name = "gqlgen-starwars-example"
-main = "./js/worker.mjs"
-compatibility_date = "2022-11-19"
-compatibility_flags = [
-    "streams_enable_constructors"
-]
+main = "./build/worker.mjs"
+compatibility_date = "2023-12-15"
 
 [build]
 command = "make build"

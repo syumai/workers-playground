@@ -24,6 +24,7 @@ import (
 // NewExecutableSchema creates an ExecutableSchema from the ResolverRoot interface.
 func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 	return &executableSchema{
+		schema:     cfg.Schema,
 		resolvers:  cfg.Resolvers,
 		directives: cfg.Directives,
 		complexity: cfg.Complexity,
@@ -31,6 +32,7 @@ func NewExecutableSchema(cfg Config) graphql.ExecutableSchema {
 }
 
 type Config struct {
+	Schema     *ast.Schema
 	Resolvers  ResolverRoot
 	Directives DirectiveRoot
 	Complexity ComplexityRoot
@@ -146,17 +148,21 @@ type StarshipResolver interface {
 }
 
 type executableSchema struct {
+	schema     *ast.Schema
 	resolvers  ResolverRoot
 	directives DirectiveRoot
 	complexity ComplexityRoot
 }
 
 func (e *executableSchema) Schema() *ast.Schema {
+	if e.schema != nil {
+		return e.schema
+	}
 	return parsedSchema
 }
 
 func (e *executableSchema) Complexity(typeName, field string, childComplexity int, rawArgs map[string]interface{}) (int, bool) {
-	ec := executionContext{nil, e}
+	ec := executionContext{nil, e, 0, 0, nil}
 	_ = ec
 	switch typeName + "." + field {
 
@@ -492,7 +498,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
-	ec := executionContext{rc, e}
+	ec := executionContext{rc, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputReviewInput,
 	)
@@ -501,18 +507,33 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	switch rc.Operation.Operation {
 	case ast.Query:
 		return func(ctx context.Context) *graphql.Response {
-			if !first {
-				return nil
+			var response graphql.Response
+			var data graphql.Marshaler
+			if first {
+				first = false
+				ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
+				data = ec._Query(ctx, rc.Operation.SelectionSet)
+			} else {
+				if atomic.LoadInt32(&ec.pendingDeferred) > 0 {
+					result := <-ec.deferredResults
+					atomic.AddInt32(&ec.pendingDeferred, -1)
+					data = result.Result
+					response.Path = result.Path
+					response.Label = result.Label
+					response.Errors = result.Errors
+				} else {
+					return nil
+				}
 			}
-			first = false
-			ctx = graphql.WithUnmarshalerMap(ctx, inputUnmarshalMap)
-			data := ec._Query(ctx, rc.Operation.SelectionSet)
 			var buf bytes.Buffer
 			data.MarshalGQL(&buf)
-
-			return &graphql.Response{
-				Data: buf.Bytes(),
+			response.Data = buf.Bytes()
+			if atomic.LoadInt32(&ec.deferred) > 0 {
+				hasNext := atomic.LoadInt32(&ec.pendingDeferred) > 0
+				response.HasNext = &hasNext
 			}
+
+			return &response
 		}
 	case ast.Mutation:
 		return func(ctx context.Context) *graphql.Response {
@@ -538,20 +559,42 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 type executionContext struct {
 	*graphql.OperationContext
 	*executableSchema
+	deferred        int32
+	pendingDeferred int32
+	deferredResults chan graphql.DeferredResult
+}
+
+func (ec *executionContext) processDeferredGroup(dg graphql.DeferredGroup) {
+	atomic.AddInt32(&ec.pendingDeferred, 1)
+	go func() {
+		ctx := graphql.WithFreshResponseContext(dg.Context)
+		dg.FieldSet.Dispatch(ctx)
+		ds := graphql.DeferredResult{
+			Path:   dg.Path,
+			Label:  dg.Label,
+			Result: dg.FieldSet,
+			Errors: graphql.GetErrors(ctx),
+		}
+		// null fields should bubble up
+		if dg.FieldSet.Invalids > 0 {
+			ds.Result = graphql.Null
+		}
+		ec.deferredResults <- ds
+	}()
 }
 
 func (ec *executionContext) introspectSchema() (*introspection.Schema, error) {
 	if ec.DisableIntrospection {
 		return nil, errors.New("introspection disabled")
 	}
-	return introspection.WrapSchema(parsedSchema), nil
+	return introspection.WrapSchema(ec.Schema()), nil
 }
 
 func (ec *executionContext) introspectType(name string) (*introspection.Type, error) {
 	if ec.DisableIntrospection {
 		return nil, errors.New("introspection disabled")
 	}
-	return introspection.WrapTypeFromDef(parsedSchema, parsedSchema.Types[name]), nil
+	return introspection.WrapTypeFromDef(ec.Schema(), ec.Schema().Types[name]), nil
 }
 
 var sources = []*ast.Source{
@@ -748,7 +791,7 @@ func (ec *executionContext) field_Human_height_args(ctx context.Context, rawArgs
 	var arg0 models.LengthUnit
 	if tmp, ok := rawArgs["unit"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unit"))
-		arg0, err = ec.unmarshalOLengthUnit2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐLengthUnit(ctx, tmp)
+		arg0, err = ec.unmarshalOLengthUnit2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐLengthUnit(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -763,7 +806,7 @@ func (ec *executionContext) field_Mutation_createReview_args(ctx context.Context
 	var arg0 models.Episode
 	if tmp, ok := rawArgs["episode"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("episode"))
-		arg0, err = ec.unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx, tmp)
+		arg0, err = ec.unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -772,7 +815,7 @@ func (ec *executionContext) field_Mutation_createReview_args(ctx context.Context
 	var arg1 models.Review
 	if tmp, ok := rawArgs["review"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("review"))
-		arg1, err = ec.unmarshalNReviewInput2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReview(ctx, tmp)
+		arg1, err = ec.unmarshalNReviewInput2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReview(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -832,7 +875,7 @@ func (ec *executionContext) field_Query_hero_args(ctx context.Context, rawArgs m
 	var arg0 *models.Episode
 	if tmp, ok := rawArgs["episode"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("episode"))
-		arg0, err = ec.unmarshalOEpisode2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx, tmp)
+		arg0, err = ec.unmarshalOEpisode2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -862,7 +905,7 @@ func (ec *executionContext) field_Query_reviews_args(ctx context.Context, rawArg
 	var arg0 models.Episode
 	if tmp, ok := rawArgs["episode"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("episode"))
-		arg0, err = ec.unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx, tmp)
+		arg0, err = ec.unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -916,7 +959,7 @@ func (ec *executionContext) field_Starship_length_args(ctx context.Context, rawA
 	var arg0 *models.LengthUnit
 	if tmp, ok := rawArgs["unit"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("unit"))
-		arg0, err = ec.unmarshalOLengthUnit2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐLengthUnit(ctx, tmp)
+		arg0, err = ec.unmarshalOLengthUnit2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐLengthUnit(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -1076,7 +1119,7 @@ func (ec *executionContext) _Droid_friends(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.([]models.Character)
 	fc.Result = res
-	return ec.marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx, field.Selections, res)
+	return ec.marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Droid_friends(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1120,7 +1163,7 @@ func (ec *executionContext) _Droid_friendsConnection(ctx context.Context, field 
 	}
 	res := resTmp.(*models.FriendsConnection)
 	fc.Result = res
-	return ec.marshalNFriendsConnection2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsConnection(ctx, field.Selections, res)
+	return ec.marshalNFriendsConnection2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsConnection(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Droid_friendsConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1152,7 +1195,7 @@ func (ec *executionContext) fieldContext_Droid_friendsConnection(ctx context.Con
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Droid_friendsConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -1185,7 +1228,7 @@ func (ec *executionContext) _Droid_appearsIn(ctx context.Context, field graphql.
 	}
 	res := resTmp.([]models.Episode)
 	fc.Result = res
-	return ec.marshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx, field.Selections, res)
+	return ec.marshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Droid_appearsIn(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1311,7 +1354,7 @@ func (ec *executionContext) _FriendsConnection_edges(ctx context.Context, field 
 	}
 	res := resTmp.([]*models.FriendsEdge)
 	fc.Result = res
-	return ec.marshalOFriendsEdge2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsEdgeᚄ(ctx, field.Selections, res)
+	return ec.marshalOFriendsEdge2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsEdgeᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_FriendsConnection_edges(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1358,7 +1401,7 @@ func (ec *executionContext) _FriendsConnection_friends(ctx context.Context, fiel
 	}
 	res := resTmp.([]models.Character)
 	fc.Result = res
-	return ec.marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx, field.Selections, res)
+	return ec.marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_FriendsConnection_friends(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1402,7 +1445,7 @@ func (ec *executionContext) _FriendsConnection_pageInfo(ctx context.Context, fie
 	}
 	res := resTmp.(models.PageInfo)
 	fc.Result = res
-	return ec.marshalNPageInfo2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐPageInfo(ctx, field.Selections, res)
+	return ec.marshalNPageInfo2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐPageInfo(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_FriendsConnection_pageInfo(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1495,7 +1538,7 @@ func (ec *executionContext) _FriendsEdge_node(ctx context.Context, field graphql
 	}
 	res := resTmp.(models.Character)
 	fc.Result = res
-	return ec.marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacter(ctx, field.Selections, res)
+	return ec.marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacter(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_FriendsEdge_node(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1649,7 +1692,7 @@ func (ec *executionContext) fieldContext_Human_height(ctx context.Context, field
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Human_height_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -1720,7 +1763,7 @@ func (ec *executionContext) _Human_friends(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.([]models.Character)
 	fc.Result = res
-	return ec.marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx, field.Selections, res)
+	return ec.marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Human_friends(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1764,7 +1807,7 @@ func (ec *executionContext) _Human_friendsConnection(ctx context.Context, field 
 	}
 	res := resTmp.(*models.FriendsConnection)
 	fc.Result = res
-	return ec.marshalNFriendsConnection2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsConnection(ctx, field.Selections, res)
+	return ec.marshalNFriendsConnection2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsConnection(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Human_friendsConnection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1796,7 +1839,7 @@ func (ec *executionContext) fieldContext_Human_friendsConnection(ctx context.Con
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Human_friendsConnection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -1829,7 +1872,7 @@ func (ec *executionContext) _Human_appearsIn(ctx context.Context, field graphql.
 	}
 	res := resTmp.([]models.Episode)
 	fc.Result = res
-	return ec.marshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx, field.Selections, res)
+	return ec.marshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Human_appearsIn(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1870,7 +1913,7 @@ func (ec *executionContext) _Human_starships(ctx context.Context, field graphql.
 	}
 	res := resTmp.([]*models.Starship)
 	fc.Result = res
-	return ec.marshalOStarship2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐStarshipᚄ(ctx, field.Selections, res)
+	return ec.marshalOStarship2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐStarshipᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Human_starships(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1921,7 +1964,7 @@ func (ec *executionContext) _Mutation_createReview(ctx context.Context, field gr
 	}
 	res := resTmp.(*models.Review)
 	fc.Result = res
-	return ec.marshalOReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReview(ctx, field.Selections, res)
+	return ec.marshalOReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReview(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_createReview(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1951,7 +1994,7 @@ func (ec *executionContext) fieldContext_Mutation_createReview(ctx context.Conte
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_createReview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2113,7 +2156,7 @@ func (ec *executionContext) _Query_hero(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.(models.Character)
 	fc.Result = res
-	return ec.marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacter(ctx, field.Selections, res)
+	return ec.marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacter(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_hero(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2135,7 +2178,7 @@ func (ec *executionContext) fieldContext_Query_hero(ctx context.Context, field g
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_hero_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2168,7 +2211,7 @@ func (ec *executionContext) _Query_reviews(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.([]*models.Review)
 	fc.Result = res
-	return ec.marshalNReview2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReviewᚄ(ctx, field.Selections, res)
+	return ec.marshalNReview2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReviewᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_reviews(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2198,7 +2241,7 @@ func (ec *executionContext) fieldContext_Query_reviews(ctx context.Context, fiel
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_reviews_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2231,7 +2274,7 @@ func (ec *executionContext) _Query_search(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.([]models.SearchResult)
 	fc.Result = res
-	return ec.marshalNSearchResult2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐSearchResultᚄ(ctx, field.Selections, res)
+	return ec.marshalNSearchResult2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐSearchResultᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_search(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2253,7 +2296,7 @@ func (ec *executionContext) fieldContext_Query_search(ctx context.Context, field
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_search_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2283,7 +2326,7 @@ func (ec *executionContext) _Query_character(ctx context.Context, field graphql.
 	}
 	res := resTmp.(models.Character)
 	fc.Result = res
-	return ec.marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacter(ctx, field.Selections, res)
+	return ec.marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacter(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_character(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2305,7 +2348,7 @@ func (ec *executionContext) fieldContext_Query_character(ctx context.Context, fi
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_character_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2335,7 +2378,7 @@ func (ec *executionContext) _Query_droid(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.(*models.Droid)
 	fc.Result = res
-	return ec.marshalODroid2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐDroid(ctx, field.Selections, res)
+	return ec.marshalODroid2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐDroid(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_droid(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2371,7 +2414,7 @@ func (ec *executionContext) fieldContext_Query_droid(ctx context.Context, field 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_droid_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2401,7 +2444,7 @@ func (ec *executionContext) _Query_human(ctx context.Context, field graphql.Coll
 	}
 	res := resTmp.(*models.Human)
 	fc.Result = res
-	return ec.marshalOHuman2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐHuman(ctx, field.Selections, res)
+	return ec.marshalOHuman2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐHuman(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_human(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2441,7 +2484,7 @@ func (ec *executionContext) fieldContext_Query_human(ctx context.Context, field 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_human_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2471,7 +2514,7 @@ func (ec *executionContext) _Query_starship(ctx context.Context, field graphql.C
 	}
 	res := resTmp.(*models.Starship)
 	fc.Result = res
-	return ec.marshalOStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐStarship(ctx, field.Selections, res)
+	return ec.marshalOStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐStarship(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_starship(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2503,7 +2546,7 @@ func (ec *executionContext) fieldContext_Query_starship(ctx context.Context, fie
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query_starship_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2577,7 +2620,7 @@ func (ec *executionContext) fieldContext_Query___type(ctx context.Context, field
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Query___type_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -2901,7 +2944,7 @@ func (ec *executionContext) fieldContext_Starship_length(ctx context.Context, fi
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Starship_length_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -4371,7 +4414,7 @@ func (ec *executionContext) fieldContext___Type_fields(ctx context.Context, fiel
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field___Type_fields_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -4559,7 +4602,7 @@ func (ec *executionContext) fieldContext___Type_enumValues(ctx context.Context, 
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field___Type_enumValues_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
-		return
+		return fc, err
 	}
 	return fc, nil
 }
@@ -4741,26 +4784,29 @@ func (ec *executionContext) unmarshalInputReviewInput(ctx context.Context, obj i
 			var err error
 
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("stars"))
-			it.Stars, err = ec.unmarshalNInt2int(ctx, v)
+			data, err := ec.unmarshalNInt2int(ctx, v)
 			if err != nil {
 				return it, err
 			}
+			it.Stars = data
 		case "commentary":
 			var err error
 
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("commentary"))
-			it.Commentary, err = ec.unmarshalOString2ᚖstring(ctx, v)
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
+			it.Commentary = data
 		case "time":
 			var err error
 
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("time"))
-			it.Time, err = ec.unmarshalOTime2timeᚐTime(ctx, v)
+			data, err := ec.unmarshalOTime2timeᚐTime(ctx, v)
 			if err != nil {
 				return it, err
 			}
+			it.Time = data
 		}
 	}
 
@@ -4832,30 +4878,27 @@ var droidImplementors = []string{"Droid", "Character", "SearchResult"}
 
 func (ec *executionContext) _Droid(ctx context.Context, sel ast.SelectionSet, obj *models.Droid) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, droidImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Droid")
 		case "id":
-
 			out.Values[i] = ec._Droid_id(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
-
 			out.Values[i] = ec._Droid_name(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "friends":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -4865,14 +4908,30 @@ func (ec *executionContext) _Droid(ctx context.Context, sel ast.SelectionSet, ob
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "friendsConnection":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -4880,34 +4939,58 @@ func (ec *executionContext) _Droid(ctx context.Context, sel ast.SelectionSet, ob
 				}()
 				res = ec._Droid_friendsConnection(ctx, field, obj)
 				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
+					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "appearsIn":
-
 			out.Values[i] = ec._Droid_appearsIn(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "primaryFunction":
-
 			out.Values[i] = ec._Droid_primaryFunction(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -4915,23 +4998,22 @@ var friendsConnectionImplementors = []string{"FriendsConnection"}
 
 func (ec *executionContext) _FriendsConnection(ctx context.Context, sel ast.SelectionSet, obj *models.FriendsConnection) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, friendsConnectionImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("FriendsConnection")
 		case "totalCount":
-
 			out.Values[i] = ec._FriendsConnection_totalCount(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "edges":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -4941,14 +5023,30 @@ func (ec *executionContext) _FriendsConnection(ctx context.Context, sel ast.Sele
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "friends":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -4958,25 +5056,51 @@ func (ec *executionContext) _FriendsConnection(ctx context.Context, sel ast.Sele
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "pageInfo":
-
 			out.Values[i] = ec._FriendsConnection_pageInfo(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -4984,31 +5108,40 @@ var friendsEdgeImplementors = []string{"FriendsEdge"}
 
 func (ec *executionContext) _FriendsEdge(ctx context.Context, sel ast.SelectionSet, obj *models.FriendsEdge) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, friendsEdgeImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("FriendsEdge")
 		case "cursor":
-
 			out.Values[i] = ec._FriendsEdge_cursor(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "node":
-
 			out.Values[i] = ec._FriendsEdge_node(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5016,41 +5149,34 @@ var humanImplementors = []string{"Human", "Character", "SearchResult"}
 
 func (ec *executionContext) _Human(ctx context.Context, sel ast.SelectionSet, obj *models.Human) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, humanImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Human")
 		case "id":
-
 			out.Values[i] = ec._Human_id(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
-
 			out.Values[i] = ec._Human_name(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "height":
-
 			out.Values[i] = ec._Human_height(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "mass":
-
 			out.Values[i] = ec._Human_mass(ctx, field, obj)
-
 		case "friends":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5060,14 +5186,30 @@ func (ec *executionContext) _Human(ctx context.Context, sel ast.SelectionSet, ob
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "friendsConnection":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5075,26 +5217,40 @@ func (ec *executionContext) _Human(ctx context.Context, sel ast.SelectionSet, ob
 				}()
 				res = ec._Human_friendsConnection(ctx, field, obj)
 				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
+					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "appearsIn":
-
 			out.Values[i] = ec._Human_appearsIn(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "starships":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5104,18 +5260,46 @@ func (ec *executionContext) _Human(ctx context.Context, sel ast.SelectionSet, ob
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5128,7 +5312,7 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 	})
 
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
 			Object: field.Name,
@@ -5139,19 +5323,29 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
 		case "createReview":
-
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createReview(ctx, field)
 			})
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5159,41 +5353,48 @@ var pageInfoImplementors = []string{"PageInfo"}
 
 func (ec *executionContext) _PageInfo(ctx context.Context, sel ast.SelectionSet, obj *models.PageInfo) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, pageInfoImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("PageInfo")
 		case "startCursor":
-
 			out.Values[i] = ec._PageInfo_startCursor(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "endCursor":
-
 			out.Values[i] = ec._PageInfo_endCursor(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "hasNextPage":
-
 			out.Values[i] = ec._PageInfo_hasNextPage(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5206,7 +5407,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	})
 
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		innerCtx := graphql.WithRootFieldContext(ctx, &graphql.RootFieldContext{
 			Object: field.Name,
@@ -5219,7 +5420,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 		case "hero":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5230,16 +5431,15 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "reviews":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5247,22 +5447,21 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_reviews(ctx, field)
 				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
+					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
 			}
 
 			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "search":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5270,22 +5469,21 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}()
 				res = ec._Query_search(ctx, field)
 				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
+					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
 			}
 
 			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "character":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5296,16 +5494,15 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "droid":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5316,16 +5513,15 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "human":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5336,16 +5532,15 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "starship":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5356,32 +5551,39 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			rrm := func(ctx context.Context) graphql.Marshaler {
-				return ec.OperationContext.RootResolverMiddleware(ctx, innerFunc)
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return rrm(innerCtx)
-			})
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
-
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
 			})
-
 		case "__schema":
-
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5389,35 +5591,42 @@ var reviewImplementors = []string{"Review"}
 
 func (ec *executionContext) _Review(ctx context.Context, sel ast.SelectionSet, obj *models.Review) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, reviewImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Review")
 		case "stars":
-
 			out.Values[i] = ec._Review_stars(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "commentary":
-
 			out.Values[i] = ec._Review_commentary(ctx, field, obj)
-
 		case "time":
-
 			out.Values[i] = ec._Review_time(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5425,30 +5634,27 @@ var starshipImplementors = []string{"Starship", "SearchResult"}
 
 func (ec *executionContext) _Starship(ctx context.Context, sel ast.SelectionSet, obj *models.Starship) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, starshipImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Starship")
 		case "id":
-
 			out.Values[i] = ec._Starship_id(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
-
 			out.Values[i] = ec._Starship_name(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "length":
 			field := field
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
 				defer func() {
 					if r := recover(); r != nil {
 						ec.Error(ctx, ec.Recover(ctx, r))
@@ -5456,30 +5662,56 @@ func (ec *executionContext) _Starship(ctx context.Context, sel ast.SelectionSet,
 				}()
 				res = ec._Starship_length(ctx, field, obj)
 				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
+					atomic.AddUint32(&fs.Invalids, 1)
 				}
 				return res
 			}
 
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
 
-			})
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "history":
-
 			out.Values[i] = ec._Starship_history(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5487,52 +5719,55 @@ var __DirectiveImplementors = []string{"__Directive"}
 
 func (ec *executionContext) ___Directive(ctx context.Context, sel ast.SelectionSet, obj *introspection.Directive) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, __DirectiveImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("__Directive")
 		case "name":
-
 			out.Values[i] = ec.___Directive_name(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "description":
-
 			out.Values[i] = ec.___Directive_description(ctx, field, obj)
-
 		case "locations":
-
 			out.Values[i] = ec.___Directive_locations(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "args":
-
 			out.Values[i] = ec.___Directive_args(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "isRepeatable":
-
 			out.Values[i] = ec.___Directive_isRepeatable(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5540,42 +5775,47 @@ var __EnumValueImplementors = []string{"__EnumValue"}
 
 func (ec *executionContext) ___EnumValue(ctx context.Context, sel ast.SelectionSet, obj *introspection.EnumValue) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, __EnumValueImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("__EnumValue")
 		case "name":
-
 			out.Values[i] = ec.___EnumValue_name(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "description":
-
 			out.Values[i] = ec.___EnumValue_description(ctx, field, obj)
-
 		case "isDeprecated":
-
 			out.Values[i] = ec.___EnumValue_isDeprecated(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "deprecationReason":
-
 			out.Values[i] = ec.___EnumValue_deprecationReason(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5583,56 +5823,57 @@ var __FieldImplementors = []string{"__Field"}
 
 func (ec *executionContext) ___Field(ctx context.Context, sel ast.SelectionSet, obj *introspection.Field) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, __FieldImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("__Field")
 		case "name":
-
 			out.Values[i] = ec.___Field_name(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "description":
-
 			out.Values[i] = ec.___Field_description(ctx, field, obj)
-
 		case "args":
-
 			out.Values[i] = ec.___Field_args(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "type":
-
 			out.Values[i] = ec.___Field_type(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "isDeprecated":
-
 			out.Values[i] = ec.___Field_isDeprecated(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "deprecationReason":
-
 			out.Values[i] = ec.___Field_deprecationReason(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5640,42 +5881,47 @@ var __InputValueImplementors = []string{"__InputValue"}
 
 func (ec *executionContext) ___InputValue(ctx context.Context, sel ast.SelectionSet, obj *introspection.InputValue) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, __InputValueImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("__InputValue")
 		case "name":
-
 			out.Values[i] = ec.___InputValue_name(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "description":
-
 			out.Values[i] = ec.___InputValue_description(ctx, field, obj)
-
 		case "type":
-
 			out.Values[i] = ec.___InputValue_type(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "defaultValue":
-
 			out.Values[i] = ec.___InputValue_defaultValue(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5683,53 +5929,54 @@ var __SchemaImplementors = []string{"__Schema"}
 
 func (ec *executionContext) ___Schema(ctx context.Context, sel ast.SelectionSet, obj *introspection.Schema) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, __SchemaImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("__Schema")
 		case "description":
-
 			out.Values[i] = ec.___Schema_description(ctx, field, obj)
-
 		case "types":
-
 			out.Values[i] = ec.___Schema_types(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "queryType":
-
 			out.Values[i] = ec.___Schema_queryType(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "mutationType":
-
 			out.Values[i] = ec.___Schema_mutationType(ctx, field, obj)
-
 		case "subscriptionType":
-
 			out.Values[i] = ec.___Schema_subscriptionType(ctx, field, obj)
-
 		case "directives":
-
 			out.Values[i] = ec.___Schema_directives(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5737,63 +5984,56 @@ var __TypeImplementors = []string{"__Type"}
 
 func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, obj *introspection.Type) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, __TypeImplementors)
+
 	out := graphql.NewFieldSet(fields)
-	var invalids uint32
+	deferred := make(map[string]*graphql.FieldSet)
 	for i, field := range fields {
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("__Type")
 		case "kind":
-
 			out.Values[i] = ec.___Type_kind(ctx, field, obj)
-
 			if out.Values[i] == graphql.Null {
-				invalids++
+				out.Invalids++
 			}
 		case "name":
-
 			out.Values[i] = ec.___Type_name(ctx, field, obj)
-
 		case "description":
-
 			out.Values[i] = ec.___Type_description(ctx, field, obj)
-
 		case "fields":
-
 			out.Values[i] = ec.___Type_fields(ctx, field, obj)
-
 		case "interfaces":
-
 			out.Values[i] = ec.___Type_interfaces(ctx, field, obj)
-
 		case "possibleTypes":
-
 			out.Values[i] = ec.___Type_possibleTypes(ctx, field, obj)
-
 		case "enumValues":
-
 			out.Values[i] = ec.___Type_enumValues(ctx, field, obj)
-
 		case "inputFields":
-
 			out.Values[i] = ec.___Type_inputFields(ctx, field, obj)
-
 		case "ofType":
-
 			out.Values[i] = ec.___Type_ofType(ctx, field, obj)
-
 		case "specifiedByURL":
-
 			out.Values[i] = ec.___Type_specifiedByURL(ctx, field, obj)
-
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
 	}
-	out.Dispatch()
-	if invalids > 0 {
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
 		return graphql.Null
 	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
 	return out
 }
 
@@ -5816,7 +6056,7 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacter(ctx context.Context, sel ast.SelectionSet, v models.Character) graphql.Marshaler {
+func (ec *executionContext) marshalNCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacter(ctx context.Context, sel ast.SelectionSet, v models.Character) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5826,17 +6066,17 @@ func (ec *executionContext) marshalNCharacter2githubᚗcomᚋsyumaiᚋworkersᚑ
 	return ec._Character(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, v interface{}) (models.Episode, error) {
+func (ec *executionContext) unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, v interface{}) (models.Episode, error) {
 	var res models.Episode
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, sel ast.SelectionSet, v models.Episode) graphql.Marshaler {
+func (ec *executionContext) marshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, sel ast.SelectionSet, v models.Episode) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) unmarshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx context.Context, v interface{}) ([]models.Episode, error) {
+func (ec *executionContext) unmarshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx context.Context, v interface{}) ([]models.Episode, error) {
 	var vSlice []interface{}
 	if v != nil {
 		vSlice = graphql.CoerceList(v)
@@ -5845,7 +6085,7 @@ func (ec *executionContext) unmarshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkers
 	res := make([]models.Episode, len(vSlice))
 	for i := range vSlice {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
-		res[i], err = ec.unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx, vSlice[i])
+		res[i], err = ec.unmarshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx, vSlice[i])
 		if err != nil {
 			return nil, err
 		}
@@ -5853,7 +6093,7 @@ func (ec *executionContext) unmarshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkers
 	return res, nil
 }
 
-func (ec *executionContext) marshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []models.Episode) graphql.Marshaler {
+func (ec *executionContext) marshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisodeᚄ(ctx context.Context, sel ast.SelectionSet, v []models.Episode) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5877,7 +6117,7 @@ func (ec *executionContext) marshalNEpisode2ᚕgithubᚗcomᚋsyumaiᚋworkers�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx, sel, v[i])
+			ret[i] = ec.marshalNEpisode2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5912,11 +6152,11 @@ func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.S
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
-func (ec *executionContext) marshalNFriendsConnection2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsConnection(ctx context.Context, sel ast.SelectionSet, v models.FriendsConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNFriendsConnection2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsConnection(ctx context.Context, sel ast.SelectionSet, v models.FriendsConnection) graphql.Marshaler {
 	return ec._FriendsConnection(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNFriendsConnection2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsConnection(ctx context.Context, sel ast.SelectionSet, v *models.FriendsConnection) graphql.Marshaler {
+func (ec *executionContext) marshalNFriendsConnection2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsConnection(ctx context.Context, sel ast.SelectionSet, v *models.FriendsConnection) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5926,7 +6166,7 @@ func (ec *executionContext) marshalNFriendsConnection2ᚖgithubᚗcomᚋsyumai�
 	return ec._FriendsConnection(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNFriendsEdge2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsEdge(ctx context.Context, sel ast.SelectionSet, v *models.FriendsEdge) graphql.Marshaler {
+func (ec *executionContext) marshalNFriendsEdge2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsEdge(ctx context.Context, sel ast.SelectionSet, v *models.FriendsEdge) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6030,11 +6270,11 @@ func (ec *executionContext) marshalNInt2ᚕᚕintᚄ(ctx context.Context, sel as
 	return ret
 }
 
-func (ec *executionContext) marshalNPageInfo2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v models.PageInfo) graphql.Marshaler {
+func (ec *executionContext) marshalNPageInfo2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐPageInfo(ctx context.Context, sel ast.SelectionSet, v models.PageInfo) graphql.Marshaler {
 	return ec._PageInfo(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNReview2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReviewᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Review) graphql.Marshaler {
+func (ec *executionContext) marshalNReview2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReviewᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Review) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -6058,7 +6298,7 @@ func (ec *executionContext) marshalNReview2ᚕᚖgithubᚗcomᚋsyumaiᚋworkers
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReview(ctx, sel, v[i])
+			ret[i] = ec.marshalNReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReview(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6078,7 +6318,7 @@ func (ec *executionContext) marshalNReview2ᚕᚖgithubᚗcomᚋsyumaiᚋworkers
 	return ret
 }
 
-func (ec *executionContext) marshalNReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReview(ctx context.Context, sel ast.SelectionSet, v *models.Review) graphql.Marshaler {
+func (ec *executionContext) marshalNReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReview(ctx context.Context, sel ast.SelectionSet, v *models.Review) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6088,12 +6328,12 @@ func (ec *executionContext) marshalNReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑ
 	return ec._Review(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNReviewInput2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReview(ctx context.Context, v interface{}) (models.Review, error) {
+func (ec *executionContext) unmarshalNReviewInput2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReview(ctx context.Context, v interface{}) (models.Review, error) {
 	res, err := ec.unmarshalInputReviewInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNSearchResult2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐSearchResult(ctx context.Context, sel ast.SelectionSet, v models.SearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNSearchResult2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐSearchResult(ctx context.Context, sel ast.SelectionSet, v models.SearchResult) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6103,7 +6343,7 @@ func (ec *executionContext) marshalNSearchResult2githubᚗcomᚋsyumaiᚋworkers
 	return ec._SearchResult(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNSearchResult2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐSearchResultᚄ(ctx context.Context, sel ast.SelectionSet, v []models.SearchResult) graphql.Marshaler {
+func (ec *executionContext) marshalNSearchResult2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐSearchResultᚄ(ctx context.Context, sel ast.SelectionSet, v []models.SearchResult) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -6127,7 +6367,7 @@ func (ec *executionContext) marshalNSearchResult2ᚕgithubᚗcomᚋsyumaiᚋwork
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNSearchResult2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐSearchResult(ctx, sel, v[i])
+			ret[i] = ec.marshalNSearchResult2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐSearchResult(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6147,7 +6387,7 @@ func (ec *executionContext) marshalNSearchResult2ᚕgithubᚗcomᚋsyumaiᚋwork
 	return ret
 }
 
-func (ec *executionContext) marshalNStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐStarship(ctx context.Context, sel ast.SelectionSet, v *models.Starship) graphql.Marshaler {
+func (ec *executionContext) marshalNStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐStarship(ctx context.Context, sel ast.SelectionSet, v *models.Starship) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -6451,14 +6691,14 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
-func (ec *executionContext) marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacter(ctx context.Context, sel ast.SelectionSet, v models.Character) graphql.Marshaler {
+func (ec *executionContext) marshalOCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacter(ctx context.Context, sel ast.SelectionSet, v models.Character) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Character(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx context.Context, sel ast.SelectionSet, v []models.Character) graphql.Marshaler {
+func (ec *executionContext) marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacterᚄ(ctx context.Context, sel ast.SelectionSet, v []models.Character) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6485,7 +6725,7 @@ func (ec *executionContext) marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkers
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐCharacter(ctx, sel, v[i])
+			ret[i] = ec.marshalNCharacter2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐCharacter(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6505,14 +6745,14 @@ func (ec *executionContext) marshalOCharacter2ᚕgithubᚗcomᚋsyumaiᚋworkers
 	return ret
 }
 
-func (ec *executionContext) marshalODroid2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐDroid(ctx context.Context, sel ast.SelectionSet, v *models.Droid) graphql.Marshaler {
+func (ec *executionContext) marshalODroid2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐDroid(ctx context.Context, sel ast.SelectionSet, v *models.Droid) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Droid(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalOEpisode2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, v interface{}) (*models.Episode, error) {
+func (ec *executionContext) unmarshalOEpisode2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, v interface{}) (*models.Episode, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -6521,7 +6761,7 @@ func (ec *executionContext) unmarshalOEpisode2ᚖgithubᚗcomᚋsyumaiᚋworkers
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOEpisode2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, sel ast.SelectionSet, v *models.Episode) graphql.Marshaler {
+func (ec *executionContext) marshalOEpisode2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐEpisode(ctx context.Context, sel ast.SelectionSet, v *models.Episode) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6538,7 +6778,7 @@ func (ec *executionContext) marshalOFloat2float64(ctx context.Context, sel ast.S
 	return graphql.WrapContextMarshaler(ctx, res)
 }
 
-func (ec *executionContext) marshalOFriendsEdge2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.FriendsEdge) graphql.Marshaler {
+func (ec *executionContext) marshalOFriendsEdge2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsEdgeᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.FriendsEdge) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6565,7 +6805,7 @@ func (ec *executionContext) marshalOFriendsEdge2ᚕᚖgithubᚗcomᚋsyumaiᚋwo
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNFriendsEdge2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐFriendsEdge(ctx, sel, v[i])
+			ret[i] = ec.marshalNFriendsEdge2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐFriendsEdge(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6585,7 +6825,7 @@ func (ec *executionContext) marshalOFriendsEdge2ᚕᚖgithubᚗcomᚋsyumaiᚋwo
 	return ret
 }
 
-func (ec *executionContext) marshalOHuman2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐHuman(ctx context.Context, sel ast.SelectionSet, v *models.Human) graphql.Marshaler {
+func (ec *executionContext) marshalOHuman2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐHuman(ctx context.Context, sel ast.SelectionSet, v *models.Human) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6624,17 +6864,17 @@ func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.Sele
 	return res
 }
 
-func (ec *executionContext) unmarshalOLengthUnit2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, v interface{}) (models.LengthUnit, error) {
+func (ec *executionContext) unmarshalOLengthUnit2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, v interface{}) (models.LengthUnit, error) {
 	var res models.LengthUnit
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOLengthUnit2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, sel ast.SelectionSet, v models.LengthUnit) graphql.Marshaler {
+func (ec *executionContext) marshalOLengthUnit2githubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, sel ast.SelectionSet, v models.LengthUnit) graphql.Marshaler {
 	return v
 }
 
-func (ec *executionContext) unmarshalOLengthUnit2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, v interface{}) (*models.LengthUnit, error) {
+func (ec *executionContext) unmarshalOLengthUnit2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, v interface{}) (*models.LengthUnit, error) {
 	if v == nil {
 		return nil, nil
 	}
@@ -6643,21 +6883,21 @@ func (ec *executionContext) unmarshalOLengthUnit2ᚖgithubᚗcomᚋsyumaiᚋwork
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOLengthUnit2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, sel ast.SelectionSet, v *models.LengthUnit) graphql.Marshaler {
+func (ec *executionContext) marshalOLengthUnit2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐLengthUnit(ctx context.Context, sel ast.SelectionSet, v *models.LengthUnit) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return v
 }
 
-func (ec *executionContext) marshalOReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐReview(ctx context.Context, sel ast.SelectionSet, v *models.Review) graphql.Marshaler {
+func (ec *executionContext) marshalOReview2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐReview(ctx context.Context, sel ast.SelectionSet, v *models.Review) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Review(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalOStarship2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐStarshipᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Starship) graphql.Marshaler {
+func (ec *executionContext) marshalOStarship2ᚕᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐStarshipᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.Starship) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
@@ -6684,7 +6924,7 @@ func (ec *executionContext) marshalOStarship2ᚕᚖgithubᚗcomᚋsyumaiᚋworke
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐStarship(ctx, sel, v[i])
+			ret[i] = ec.marshalNStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐStarship(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -6704,7 +6944,7 @@ func (ec *executionContext) marshalOStarship2ᚕᚖgithubᚗcomᚋsyumaiᚋworke
 	return ret
 }
 
-func (ec *executionContext) marshalOStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgoᚑgqlgenᚋstarwarsᚋmodelsᚐStarship(ctx context.Context, sel ast.SelectionSet, v *models.Starship) graphql.Marshaler {
+func (ec *executionContext) marshalOStarship2ᚖgithubᚗcomᚋsyumaiᚋworkersᚑplaygroundᚋgqlgenᚑstarwarsᚑexampleᚋstarwarsᚋmodelsᚐStarship(ctx context.Context, sel ast.SelectionSet, v *models.Starship) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

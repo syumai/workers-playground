@@ -4,9 +4,9 @@ dev:
 
 .PHONY: build
 build:
-	mkdir -p dist
-	GOOS=js GOARCH=wasm go build -o ./dist/app.wasm .
+	go run github.com/syumai/workers/cmd/workers-assets-gen@v0.18.0 -mode=go
+	GOOS=js GOARCH=wasm go build -o ./build/app.wasm .
 
-.PHONY: publish
-publish:
-	wrangler publish
+.PHONY: deploy
+deploy:
+	wrangler deploy

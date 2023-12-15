@@ -3,14 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/syumai/workers"
-	"net/http"
-
 	"github.com/99designs/gqlgen/_examples/starwars"
 	"github.com/99designs/gqlgen/_examples/starwars/generated"
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/syumai/workers"
+	"net/http"
 )
 
 func main() {
