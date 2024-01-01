@@ -2,6 +2,13 @@
 
 - A worker to test `time.Now()` result.
 
+## Example
+
+```
+$ curl https://go-date-example.syumai.workers.dev/now
+2024-01-01 14:45:50.945 +0000 UTC+0 m=+0.000000001
+```
+
 ## Development
 
 ### Commands
