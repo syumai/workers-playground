@@ -1,0 +1,6 @@
+name = "go-worker"
+main = "./build/worker.mjs"
+compatibility_date = "2024-04-15"
+
+[build]
+command = "make build"
