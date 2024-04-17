@@ -1,0 +1,11 @@
+name = "syumai-workers-repro-issue-103"
+main = "./build/worker.mjs"
+compatibility_date = "2024-04-15"
+
+[build]
+command = "make build"
+
+[[r2_buckets]]
+binding = "DOCUMENTS"
+bucket_name = "documents"
+preview_bucket_name = "documents-preview"
