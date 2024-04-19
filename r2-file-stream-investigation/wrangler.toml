@@ -1,0 +1,9 @@
+#:schema node_modules/wrangler/config-schema.json
+name = "r2-file-stream-investigation"
+main = "src/index.ts"
+compatibility_date = "2024-04-05"
+
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "r2-file-stream-investigation"
+preview_bucket_name = "r2-file-stream-investigation"
