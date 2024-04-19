@@ -7,5 +7,5 @@ command = "make build"
 
 [[r2_buckets]]
 binding = "DOCUMENTS"
-bucket_name = "documents"
-preview_bucket_name = "documents-preview"
+bucket_name = "syumai-workers-repro-issue-103"
+preview_bucket_name = "syumai-workers-repro-issue-103"

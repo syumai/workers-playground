@@ -1,6 +1,6 @@
 .PHONY: dev
 dev:
-	wrangler dev
+	wrangler dev --remote
 
 .PHONY: build
 build:
