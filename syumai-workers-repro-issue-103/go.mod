@@ -7,7 +7,7 @@ toolchain go1.22.1
 require (
 	github.com/klauspost/compress v1.17.8
 	github.com/labstack/echo/v4 v4.12.0
-	github.com/syumai/workers v0.24.0
+	github.com/syumai/workers v0.25.0
 )
 
 require (
@@ -21,5 +21,3 @@ require (
 	golang.org/x/sys v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 )
-
-replace github.com/syumai/workers => ../../workers
