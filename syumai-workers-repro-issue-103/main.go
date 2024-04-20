@@ -2,7 +2,6 @@
 package main
 
 import (
-	"bytes"
 	"compress/flate"
 	"fmt"
 	"io"
@@ -30,8 +29,15 @@ func main() {
 		c.Response().WriteHeader(http.StatusOK)
 
 		// Prepare to stream a ZIP file from R2
-		var zipBuf bytes.Buffer
-		writer := zip.NewWriter(&zipBuf)
+		writer := zip.NewWriter(c.Response())
+		defer func() {
+			if err := writer.Flush(); err != nil {
+				c.Logger().Errorf("Error flushing zip writer: %s", err)
+			}
+			if err := writer.Close(); err != nil {
+				c.Logger().Errorf("failed to close ZIP writer: %v", err)
+			}
+		}()
 		writer.RegisterCompressor(zip.Deflate, func(out io.Writer) (io.WriteCloser, error) {
 			return flate.NewWriter(out, flate.NoCompression)
 		})
@@ -66,16 +72,9 @@ func main() {
 				c.Logger().Errorf("failed to copy file '%s' from R2: %v", file, err)
 				return err
 			}
-		}
-		if err := writer.Flush(); err != nil {
-			c.Logger().Errorf("Error flushing zip writer: %s", err)
-		}
-		if err := writer.Close(); err != nil {
-			c.Logger().Errorf("failed to close ZIP writer: %v", err)
-		}
-		if _, err := io.Copy(c.Response(), &zipBuf); err != nil {
-			c.Logger().Error("failed to copy zip from buffer")
-			return err
+			if err := writer.Flush(); err != nil {
+				c.Logger().Errorf("Error flushing zip writer: %s", err)
+			}
 		}
 		return nil
 	})
