@@ -1,0 +1,14 @@
+{
+	"name": "add-wasm",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"build": "wat2wasm add.wat",
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev"
+	},
+	"devDependencies": {
+		"wrangler": "^3.57.0"
+	}
+}

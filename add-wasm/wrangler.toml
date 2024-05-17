@@ -1,0 +1,4 @@
+name = "add-wasm"
+main = "index.js"
+compatibility_date = "2024-05-12"
+
