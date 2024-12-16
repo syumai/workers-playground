@@ -1,6 +1,10 @@
 name = "gqlgen-starwars-example"
 main = "./build/worker.mjs"
-compatibility_date = "2023-12-15"
+compatibility_date = "2024-04-15"
+
+[assets]
+directory = "./public"
+html_handling = "drop-trailing-slash"
 
 [build]
 command = "make build"
