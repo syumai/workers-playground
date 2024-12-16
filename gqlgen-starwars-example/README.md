@@ -12,9 +12,9 @@
 ### Commands
 
 ```
-make dev     # run dev server
-make build   # build Go Wasm binary
-make publish # publish worker
+make dev    # run dev server
+make build  # build Go Wasm binary
+make deploy # deploy worker
 ```
 
 ### Testing dev server
