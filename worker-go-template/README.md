@@ -30,6 +30,7 @@ npm create cloudflare@latest -- --template github.com/syumai/workers/_templates/
 ```console
 cd my-app
 go mod init
+go mod tidy
 npm run dev # start running dev server
 curl http://localhost:8787/hello # outputs "Hello!"
 ```
