@@ -4,11 +4,13 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "syumai-workers-repro-issue-162",
-	"main": "./build/worker.mjs",
+	"name": "syumai-workers-repro-issue-162-cors",
+	"main": "src/index.js",
 	"compatibility_date": "2025-04-07",
-	"build": {
-		"command": "pnpm build"
+	"compatibility_flags": ["nodejs_compat"],
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./public"
 	},
 	"observability": {
 		"enabled": false

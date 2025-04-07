@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Hello, World!</title>
+	</head>
+	<body>
+		<h1 id="heading"></h1>
+		<button id="button" type="button">Call echo</button>
+		<output id="echo" for="button"></output>
+		<script>
+			fetch('https://syumai-workers-repro-issue-162.syumai.workers.dev/hello')
+				.then((resp) => resp.text())
+				.then((text) => {
+					const h1 = document.getElementById('heading');
+					h1.textContent = text;
+				});
+
+			const button = document.getElementById('button');
+			button.addEventListener('click', () => {
+				fetch('https://syumai-workers-repro-issue-162.syumai.workers.dev/echo', {
+					method: 'POST',
+					body: JSON.stringify({
+						message: 'Echo from repro worker!',
+					}),
+					headers: {
+						'Content-Type': 'application/json',
+					},
+				})
+					.then((resp) => resp.text())
+					.then((text) => {
+						const echo = document.getElementById('echo');
+						echo.textContent = text;
+					});
+			});
+		</script>
+	</body>
+</html>
