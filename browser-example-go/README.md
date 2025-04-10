@@ -4,9 +4,9 @@
   - This template uses Cloudflare Workers to just serve a static page.
 - This template uses [`workers`](https://github.com/syumai/workers) package to run an HTTP server.
 
-## Usage
+## Demo
 
-- `main.go` includes simple HTTP server implementation. Feel free to edit this code and implement your own HTTP server.
+https://browser-example-go.syumai.workers.dev/
 
 ## Requirements
 
