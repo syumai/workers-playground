@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>Go HTTP Server in the Browser</title>
+</head>
+
+<body>
+  <h1>Go HTTP Server in the Browser</h1>
+  <form id="app">
+    <div>
+      <label>
+        Path
+        <select name="path">
+          <option value="hello">/hello</option>
+          <option value="echo">/echo</option>
+        </select>
+      </label>
+    </div>
+    <div>
+      <label>
+        Name (for hello)
+        <input type="text" name="name" value="Name" />
+      </label>
+    </div>
+    <div>
+      <label>
+        <label>
+          Message (for echo)
+          <input type="text" name="message" value="Message" />
+        </label>
+    </div>
+    <button type="submit">Send</button>
+  </form>
+
+  <h2>Result</h2>
+  <div id="result"></div>
+  <script src="./index.mjs" type="module"></script>
+</body>
+
+</html>
