@@ -6,7 +6,7 @@ require (
 	github.com/99designs/gqlgen v0.17.60
 	github.com/99designs/gqlgen/_examples v0.0.0-20241216131759-2a8d1415ca23
 	github.com/stretchr/testify v1.10.0
-	github.com/syumai/workers v0.30.0
+	github.com/syumai/workers v0.30.1
 	github.com/vektah/gqlparser/v2 v2.5.20
 )
 
