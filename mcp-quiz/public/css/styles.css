@@ -267,3 +267,81 @@ h1 {
     font-size: 16px;
     text-align: center;
 }
+
+/* Category selection styles */
+.mode-option {
+    text-align: center;
+    margin: 10px 0;
+    font-size: 16px;
+    color: #666;
+}
+
+.select-category-btn {
+    background-color: #2ecc71;
+}
+
+.select-category-btn:hover {
+    background-color: #27ae60;
+}
+
+.category-selection-screen {
+    display: none;
+}
+
+.category-checkboxes {
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.category-checkbox {
+    display: flex;
+    align-items: center;
+    background-color: #f8f9fa;
+    padding: 12px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.category-checkbox:hover {
+    background-color: #e2e8f0;
+}
+
+.category-checkbox input[type="checkbox"] {
+    margin-right: 10px;
+    width: 18px;
+    height: 18px;
+}
+
+.category-checkbox label {
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.category-selection-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.back-btn {
+    display: block;
+    width: 200px;
+    margin: 0 auto;
+    background-color: #95a5a6;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    text-align: center;
+    transition: background-color 0.2s;
+}
+
+.back-btn:hover {
+    background-color: #7f8c8d;
+}

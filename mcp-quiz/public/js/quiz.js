@@ -18,6 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let userAnswers = [];
   let categoryScores = {};
   let totalCorrect = 0;
+  let selectedCategories = [...allCategories]; // デフォルトですべてのカテゴリを選択
 
   // カテゴリと問題データのマッピング
   const questionData = {
@@ -28,20 +29,56 @@ document.addEventListener("DOMContentLoaded", () => {
     tools: toolsQuestions,
   };
 
-  // スタートボタンのイベントリスナー
+  // スタートボタンのイベントリスナー（全カテゴリモード）
   document.getElementById("start-quiz-btn").addEventListener("click", () => {
+    selectedCategories = [...allCategories]; // すべてのカテゴリを選択
+    initializeQuiz();
+  });
+  
+  // カテゴリ選択ボタンのイベントリスナー
+  document.getElementById("select-category-btn").addEventListener("click", () => {
+    // スタート画面を非表示にし、カテゴリ選択画面を表示
+    document.querySelector(".start-screen").style.display = "none";
+    document.querySelector(".category-selection-screen").style.display = "block";
+  });
+  
+  // 戻るボタンのイベントリスナー
+  document.getElementById("back-to-start-btn").addEventListener("click", () => {
+    // カテゴリ選択画面を非表示にし、スタート画面を表示
+    document.querySelector(".category-selection-screen").style.display = "none";
+    document.querySelector(".start-screen").style.display = "block";
+  });
+  
+  // 選択したカテゴリでクイズを開始するボタンのイベントリスナー
+  document.getElementById("start-selected-categories-btn").addEventListener("click", () => {
+    // 選択されたカテゴリを取得
+    selectedCategories = [];
+    for (const category of allCategories) {
+      const checkbox = document.getElementById(`category-${category}`);
+      if (checkbox.checked) {
+        selectedCategories.push(category);
+      }
+    }
+    
+    // 少なくとも1つのカテゴリが選択されていることを確認
+    if (selectedCategories.length === 0) {
+      alert("少なくとも1つのカテゴリを選択してください。");
+      return;
+    }
+    
+    // クイズを初期化して開始
     initializeQuiz();
   });
 
   // クイズを初期化する関数
   function initializeQuiz() {
-    // すべてのカテゴリから問題を集める
+    // 選択されたカテゴリから問題を集める
     allQuestions = [];
     categoryScores = {};
     totalCorrect = 0;
 
     // 各カテゴリから5問ずつランダムに選択して追加
-    for (const category of allCategories) {
+    for (const category of selectedCategories) {
       const data = questionData[category];
       if (!data) {
         console.error("Error: Question data not found for category:", category);
