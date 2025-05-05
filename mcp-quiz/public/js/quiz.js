@@ -52,22 +52,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // 選択したカテゴリでクイズを開始するボタンのイベントリスナー
   document.getElementById("start-selected-categories-btn").addEventListener("click", () => {
     // 選択されたカテゴリを取得
-    selectedCategories = [];
-    for (const category of allCategories) {
-      const checkbox = document.getElementById(`category-${category}`);
-      if (checkbox.checked) {
-        selectedCategories.push(category);
-      }
+    const selectedRadio = document.querySelector('input[name="category"]:checked');
+    if (selectedRadio) {
+      // 選択されたカテゴリだけを配列に設定
+      selectedCategories = [selectedRadio.value];
+      
+      // クイズを初期化して開始
+      initializeQuiz();
+    } else {
+      alert("カテゴリを選択してください。");
     }
-    
-    // 少なくとも1つのカテゴリが選択されていることを確認
-    if (selectedCategories.length === 0) {
-      alert("少なくとも1つのカテゴリを選択してください。");
-      return;
-    }
-    
-    // クイズを初期化して開始
-    initializeQuiz();
   });
 
   // クイズを初期化する関数

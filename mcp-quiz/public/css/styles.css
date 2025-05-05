@@ -288,14 +288,14 @@ h1 {
     display: none;
 }
 
-.category-checkboxes {
+.category-options {
     margin: 20px 0;
     display: flex;
     flex-direction: column;
     gap: 15px;
 }
 
-.category-checkbox {
+.category-option {
     display: flex;
     align-items: center;
     background-color: #f8f9fa;
@@ -305,17 +305,17 @@ h1 {
     transition: background-color 0.2s;
 }
 
-.category-checkbox:hover {
+.category-option:hover {
     background-color: #e2e8f0;
 }
 
-.category-checkbox input[type="checkbox"] {
+.category-option input[type="radio"] {
     margin-right: 10px;
     width: 18px;
     height: 18px;
 }
 
-.category-checkbox label {
+.category-option label {
     font-size: 16px;
     cursor: pointer;
 }
