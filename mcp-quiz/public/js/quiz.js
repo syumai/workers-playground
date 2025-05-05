@@ -113,8 +113,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ランダムに問題を選択する関数
   function getRandomQuestions(allQuestions, count) {
-    const shuffled = [...allQuestions].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
+    // Fisher-Yatesシャッフルアルゴリズムを使用し、cryptoで乱数を生成
+    const array = [...allQuestions];
+    
+    // シャッフル処理
+    for (let i = array.length - 1; i > 0; i--) {
+      // crypto.getRandomValuesを使用して安全な乱数を生成
+      const randomValues = new Uint32Array(1);
+      crypto.getRandomValues(randomValues);
+      // 0からiまでの範囲の乱数を生成
+      const j = randomValues[0] % (i + 1);
+      
+      // 要素を交換
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    
+    return array.slice(0, count);
   }
 
   // 問題を表示する関数
