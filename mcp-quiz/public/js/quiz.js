@@ -35,31 +35,34 @@ document.addEventListener("DOMContentLoaded", () => {
     selectedCategories = [...allCategories]; // すべてのカテゴリを選択
     initializeQuiz();
   });
-  
+
   // カテゴリ選択ボタンのイベントリスナー
-  document.getElementById("select-category-btn").addEventListener("click", () => {
-    // スタート画面を非表示にし、カテゴリ選択画面を表示
-    document.querySelector(".start-screen").style.display = "none";
-    document.querySelector(".category-selection-screen").style.display = "block";
-  });
-  
+  document
+    .getElementById("select-category-btn")
+    .addEventListener("click", () => {
+      // スタート画面を非表示にし、カテゴリ選択画面を表示
+      document.querySelector(".start-screen").style.display = "none";
+      document.querySelector(".category-selection-screen").style.display =
+        "block";
+    });
+
   // 戻るボタンのイベントリスナー
   document.getElementById("back-to-start-btn").addEventListener("click", () => {
     // カテゴリ選択画面を非表示にし、スタート画面を表示
     document.querySelector(".category-selection-screen").style.display = "none";
     document.querySelector(".start-screen").style.display = "block";
   });
-  
+
   // カテゴリボタンのイベントリスナーを設定
-  const categoryButtons = document.querySelectorAll('.category-btn');
+  const categoryButtons = document.querySelectorAll(".category-btn");
   for (const button of categoryButtons) {
     button.addEventListener("click", () => {
       // ボタンのdata-category属性から選択されたカテゴリを取得
-      const selectedCategory = button.getAttribute('data-category');
-      
+      const selectedCategory = button.getAttribute("data-category");
+
       // 選択されたカテゴリだけを配列に設定
       selectedCategories = [selectedCategory];
-      
+
       // クイズを初期化して開始
       initializeQuiz();
     });
@@ -102,7 +105,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // 各問題の選択肢をシャッフルするためのマッピングを作成
     for (let i = 0; i < allQuestions.length; i++) {
       // 各問題の選択肢のインデックス配列を作成 (0, 1, 2, 3)
-      const indices = Array.from({ length: allQuestions[i].options.length }, (_, idx) => idx);
+      const indices = Array.from(
+        { length: allQuestions[i].options.length },
+        (_, idx) => idx
+      );
       // インデックス配列をシャッフル
       const shuffledIndices = shuffleArray([...indices]);
       optionsMappings.push(shuffledIndices);
@@ -126,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function getRandomQuestions(allQuestions, count) {
     // Fisher-Yatesシャッフルアルゴリズムを使用し、cryptoで乱数を生成
     const array = [...allQuestions];
-    
+
     // シャッフル処理
     for (let i = array.length - 1; i > 0; i--) {
       // crypto.getRandomValuesを使用して安全な乱数を生成
@@ -134,14 +140,14 @@ document.addEventListener("DOMContentLoaded", () => {
       crypto.getRandomValues(randomValues);
       // 0からiまでの範囲の乱数を生成
       const j = randomValues[0] % (i + 1);
-      
+
       // 要素を交換
       [array[i], array[j]] = [array[j], array[i]];
     }
-    
+
     return array.slice(0, count);
   }
-  
+
   // 配列をシャッフルする関数
   function shuffleArray(array) {
     // Fisher-Yatesシャッフルアルゴリズムを使用し、cryptoで乱数を生成
@@ -151,11 +157,11 @@ document.addEventListener("DOMContentLoaded", () => {
       crypto.getRandomValues(randomValues);
       // 0からiまでの範囲の乱数を生成
       const j = randomValues[0] % (i + 1);
-      
+
       // 要素を交換
       [array[i], array[j]] = [array[j], array[i]];
     }
-    
+
     return array;
   }
 
@@ -185,7 +191,7 @@ document.addEventListener("DOMContentLoaded", () => {
     for (let i = 0; i < optionsMapping.length; i++) {
       const originalIndex = optionsMapping[i]; // 元の選択肢のインデックス
       const option = question.options[originalIndex]; // 元の選択肢のテキスト
-      
+
       const button = document.createElement("button");
       button.className = "option-btn";
       button.textContent = option;
@@ -278,7 +284,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // 選択されたカテゴリのスコアのみを表示
     for (const category of selectedCategories) {
       const score = categoryScores[category];
-      if (score) { // スコアが存在する場合のみ表示
+      if (score) {
+        // スコアが存在する場合のみ表示
         const scoreItem = document.createElement("div");
         scoreItem.className = "category-score";
         scoreItem.textContent = `${category}: ${score.correct} / ${score.total} 問正解`;
@@ -314,7 +321,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }`;
       } else {
         reviewAnswer.textContent = `あなたの回答: ${
-          userAnswer !== null ? question.options[userAnswer] : '未回答'
+          userAnswer !== null ? question.options[userAnswer] : "未回答"
         } / 正解: ${question.options[question.correctAnswer]}`;
       }
 
@@ -331,21 +338,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // シェアボタンのテキストを設定
     let shareText;
-    
+
     // カテゴリが1つだけ選択されている場合はカテゴリ名を含める
     if (selectedCategories.length === 1) {
       shareText = `MCP Quizの${selectedCategories[0]}カテゴリで${totalCorrect}/${allQuestions.length}問正解しました！ #MCPQuiz`;
     } else {
       shareText = `MCP Quizで${totalCorrect}/${allQuestions.length}問正解しました！ #MCPQuiz`;
     }
-    
+
     document.getElementById("share-text").value = shareText;
 
     // Twitterシェアボタンの設定
     const twitterButton = document.getElementById("twitter-share");
     twitterButton.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
       shareText
-    )}`;
+    )}&url=${encodeURIComponent("https://mcp-quiz.syumai.workers.dev")}`;
 
     // 画面の切り替え
     document.querySelector(".question-container").style.display = "none";
