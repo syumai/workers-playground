@@ -282,7 +282,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // シェアボタンのテキストを設定
-    const shareText = `MCP Quizで${totalCorrect}/${allQuestions.length}問正解しました！ #MCPQuiz`;
+    let shareText;
+    
+    // カテゴリが1つだけ選択されている場合はカテゴリ名を含める
+    if (selectedCategories.length === 1) {
+      shareText = `MCP Quizの${selectedCategories[0]}カテゴリで${totalCorrect}/${allQuestions.length}問正解しました！ #MCPQuiz`;
+    } else {
+      shareText = `MCP Quizで${totalCorrect}/${allQuestions.length}問正解しました！ #MCPQuiz`;
+    }
+    
     document.getElementById("share-text").value = shareText;
 
     // Twitterシェアボタンの設定
