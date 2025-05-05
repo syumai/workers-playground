@@ -49,20 +49,20 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector(".start-screen").style.display = "block";
   });
   
-  // 選択したカテゴリでクイズを開始するボタンのイベントリスナー
-  document.getElementById("start-selected-categories-btn").addEventListener("click", () => {
-    // 選択されたカテゴリを取得
-    const selectedRadio = document.querySelector('input[name="category"]:checked');
-    if (selectedRadio) {
+  // カテゴリボタンのイベントリスナーを設定
+  const categoryButtons = document.querySelectorAll('.category-btn');
+  for (const button of categoryButtons) {
+    button.addEventListener("click", () => {
+      // ボタンのdata-category属性から選択されたカテゴリを取得
+      const selectedCategory = button.getAttribute('data-category');
+      
       // 選択されたカテゴリだけを配列に設定
-      selectedCategories = [selectedRadio.value];
+      selectedCategories = [selectedCategory];
       
       // クイズを初期化して開始
       initializeQuiz();
-    } else {
-      alert("カテゴリを選択してください。");
-    }
-  });
+    });
+  }
 
   // クイズを初期化する関数
   function initializeQuiz() {
@@ -106,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // 画面の切り替え
     document.querySelector(".start-screen").style.display = "none";
+    document.querySelector(".category-selection-screen").style.display = "none";
     document.querySelector(".question-container").style.display = "block";
     document.querySelector(".results-container").style.display = "none";
   }
@@ -226,12 +227,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const categoryScoresElement = document.getElementById("category-scores");
     categoryScoresElement.innerHTML = "";
 
-    for (const category of allCategories) {
+    // 選択されたカテゴリのスコアのみを表示
+    for (const category of selectedCategories) {
       const score = categoryScores[category];
-      const scoreItem = document.createElement("div");
-      scoreItem.className = "category-score";
-      scoreItem.textContent = `${category}: ${score.correct} / ${score.total} 問正解`;
-      categoryScoresElement.appendChild(scoreItem);
+      if (score) { // スコアが存在する場合のみ表示
+        const scoreItem = document.createElement("div");
+        scoreItem.className = "category-score";
+        scoreItem.textContent = `${category}: ${score.correct} / ${score.total} 問正解`;
+        categoryScoresElement.appendChild(scoreItem);
+      }
     }
 
     // 各問題のレビューを表示

@@ -19,31 +19,25 @@
     
     <div class="container category-selection-screen">
         <h2>カテゴリを選択</h2>
-        <p>クイズを実行する1つのカテゴリを選択してください。</p>
+        <p>クイズを実行するカテゴリを選択してください。</p>
         <div class="category-options">
             <div class="category-option">
-                <input type="radio" id="category-transports" name="category" value="transports" checked>
-                <label for="category-transports">Transports</label>
+                <button id="category-transports" class="category-btn" data-category="transports">Transports</button>
             </div>
             <div class="category-option">
-                <input type="radio" id="category-lifecycle" name="category" value="lifecycle">
-                <label for="category-lifecycle">Lifecycle</label>
+                <button id="category-lifecycle" class="category-btn" data-category="lifecycle">Lifecycle</button>
             </div>
             <div class="category-option">
-                <input type="radio" id="category-resources" name="category" value="resources">
-                <label for="category-resources">Resources</label>
+                <button id="category-resources" class="category-btn" data-category="resources">Resources</button>
             </div>
             <div class="category-option">
-                <input type="radio" id="category-prompts" name="category" value="prompts">
-                <label for="category-prompts">Prompts</label>
+                <button id="category-prompts" class="category-btn" data-category="prompts">Prompts</button>
             </div>
             <div class="category-option">
-                <input type="radio" id="category-tools" name="category" value="tools">
-                <label for="category-tools">Tools</label>
+                <button id="category-tools" class="category-btn" data-category="tools">Tools</button>
             </div>
         </div>
         <div class="category-selection-buttons">
-            <button id="start-selected-categories-btn" class="start-btn">選択したカテゴリのクイズを開始</button>
             <button id="back-to-start-btn" class="back-btn">戻る</button>
         </div>
     </div>
