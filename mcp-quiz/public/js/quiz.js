@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let categoryScores = {};
   let totalCorrect = 0;
   let selectedCategories = [...allCategories]; // デフォルトですべてのカテゴリを選択
+  let optionsMappings = []; // 各問題の選択肢のシャッフルマッピングを保存
 
   // カテゴリと問題データのマッピング
   const questionData = {
@@ -70,6 +71,7 @@ document.addEventListener("DOMContentLoaded", () => {
     allQuestions = [];
     categoryScores = {};
     totalCorrect = 0;
+    optionsMappings = []; // 選択肢のシャッフルマッピングをリセット
 
     // 各カテゴリから5問ずつランダムに選択して追加
     for (const category of selectedCategories) {
@@ -95,6 +97,15 @@ document.addEventListener("DOMContentLoaded", () => {
         correct: 0,
         total: categoryQuestions.length,
       };
+    }
+
+    // 各問題の選択肢をシャッフルするためのマッピングを作成
+    for (let i = 0; i < allQuestions.length; i++) {
+      // 各問題の選択肢のインデックス配列を作成 (0, 1, 2, 3)
+      const indices = Array.from({ length: allQuestions[i].options.length }, (_, idx) => idx);
+      // インデックス配列をシャッフル
+      const shuffledIndices = shuffleArray([...indices]);
+      optionsMappings.push(shuffledIndices);
     }
 
     // ユーザーの回答を初期化
@@ -130,11 +141,29 @@ document.addEventListener("DOMContentLoaded", () => {
     
     return array.slice(0, count);
   }
+  
+  // 配列をシャッフルする関数
+  function shuffleArray(array) {
+    // Fisher-Yatesシャッフルアルゴリズムを使用し、cryptoで乱数を生成
+    for (let i = array.length - 1; i > 0; i--) {
+      // crypto.getRandomValuesを使用して安全な乱数を生成
+      const randomValues = new Uint32Array(1);
+      crypto.getRandomValues(randomValues);
+      // 0からiまでの範囲の乱数を生成
+      const j = randomValues[0] % (i + 1);
+      
+      // 要素を交換
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    
+    return array;
+  }
 
   // 問題を表示する関数
   function showQuestion(index) {
     const question = allQuestions[index];
     const currentCategory = question.category;
+    const optionsMapping = optionsMappings[index]; // 現在の問題の選択肢マッピングを取得
 
     // 進捗表示の更新
     document.getElementById("current-question").textContent = index + 1;
@@ -152,13 +181,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const optionsContainer = document.getElementById("options");
     optionsContainer.innerHTML = "";
 
-    for (const [optionIndex, option] of question.options.entries()) {
+    // シャッフルされた順序で選択肢を表示
+    for (let i = 0; i < optionsMapping.length; i++) {
+      const originalIndex = optionsMapping[i]; // 元の選択肢のインデックス
+      const option = question.options[originalIndex]; // 元の選択肢のテキスト
+      
       const button = document.createElement("button");
       button.className = "option-btn";
       button.textContent = option;
+      button.dataset.originalIndex = originalIndex; // 元のインデックスをデータ属性として保存
 
       // ユーザーが既に回答している場合、選択状態を反映
-      if (userAnswers[index] === optionIndex) {
+      if (userAnswers[index] === originalIndex) {
         button.classList.add("selected");
       }
 
@@ -169,8 +203,8 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         button.classList.add("selected");
 
-        // 回答を保存
-        userAnswers[index] = optionIndex;
+        // 回答を保存 (元のインデックスを使用)
+        userAnswers[index] = originalIndex;
       });
 
       optionsContainer.appendChild(button);
@@ -280,7 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }`;
       } else {
         reviewAnswer.textContent = `あなたの回答: ${
-          question.options[userAnswer]
+          userAnswer !== null ? question.options[userAnswer] : '未回答'
         } / 正解: ${question.options[question.correctAnswer]}`;
       }
 
