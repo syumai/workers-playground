@@ -2,6 +2,10 @@
 
 Model Context Protocol（MCP）の2025-03-26仕様についての理解を深めるためのクイズアプリケーションです。Cloudflare Workersで動作します。
 
+## URL
+
+https://mcp-quiz.syumai.workers.dev/
+
 ## 特徴
 
 - 以下の5つのカテゴリからクイズを出題します：
