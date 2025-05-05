@@ -22,27 +22,30 @@ h1 {
     margin-bottom: 30px;
 }
 
-.category-selection {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    justify-content: center;
-    margin-bottom: 30px;
+.start-screen p {
+    text-align: center;
+    margin-bottom: 20px;
+    font-size: 18px;
+    color: #555;
 }
 
-.category-btn {
+.start-btn {
+    display: block;
+    width: 250px;
+    margin: 30px auto;
     background-color: #3498db;
     color: white;
     border: none;
-    padding: 12px 20px;
+    padding: 15px 25px;
     border-radius: 5px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 500;
     transition: background-color 0.2s;
+    text-align: center;
 }
 
-.category-btn:hover {
+.start-btn:hover {
     background-color: #2980b9;
 }
 
@@ -171,6 +174,84 @@ h1 {
     border-radius: 5px;
     margin-top: 10px;
     font-size: 14px;
+}
+
+.category-scores {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.category-score {
+    background-color: #f1f5f9;
+    padding: 8px 15px;
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.share-container {
+    background-color: #f8f9fa;
+    padding: 20px;
+    border-radius: 5px;
+    margin: 20px 0;
+    text-align: center;
+}
+
+.share-container h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #2c3e50;
+}
+
+.share-input-container {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.share-text {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px 0 0 5px;
+    font-size: 14px;
+}
+
+.share-btn {
+    background-color: #3498db;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.social-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.social-btn {
+    display: inline-block;
+    padding: 10px 20px;
+    border-radius: 5px;
+    color: white;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    transition: opacity 0.2s;
+}
+
+.social-btn:hover {
+    opacity: 0.9;
+}
+
+.twitter-btn {
+    background-color: #000000;
 }
 
 .try-again-btn {

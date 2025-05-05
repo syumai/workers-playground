@@ -10,19 +10,14 @@
     <h1>Model Context Protocol 2025-03-26 クイズ</h1>
     
     <div class="container start-screen">
-        <h2>テストする項目を選択してください</h2>
-        <div class="category-selection">
-            <button class="category-btn" data-category="transports">Transports</button>
-            <button class="category-btn" data-category="lifecycle">Lifecycle</button>
-            <button class="category-btn" data-category="resources">Resources</button>
-            <button class="category-btn" data-category="prompts">Prompts</button>
-            <button class="category-btn" data-category="tools">Tools</button>
-        </div>
+        <h2>MCP クイズにチャレンジ！</h2>
+        <p>全カテゴリから各5問ずつ、合計25問のクイズに挑戦します。</p>
+        <button id="start-quiz-btn" class="start-btn">クイズを開始する</button>
     </div>
 
     <div class="container question-container">
         <h2 id="category-title"></h2>
-        <div id="progress">Question <span id="current-question">1</span> of 5</div>
+        <div id="progress">Question <span id="current-question">1</span> of <span id="total-questions">25</span></div>
         <div id="question-text" class="question"></div>
         <div id="options" class="options"></div>
         
@@ -37,6 +32,17 @@
         <div class="results-header">
             <h2>結果</h2>
             <div id="score" class="score"></div>
+            <div id="category-scores" class="category-scores"></div>
+        </div>
+        <div class="share-container">
+            <h3>結果をシェアする</h3>
+            <div class="share-input-container">
+                <input type="text" id="share-text" class="share-text" readonly>
+                <button id="copy-share" class="share-btn">コピー</button>
+            </div>
+            <div class="social-buttons">
+                <a id="twitter-share" href="#" target="_blank" class="social-btn twitter-btn">X でシェア</a>
+            </div>
         </div>
         <div id="review-list"></div>
         <button id="try-again-btn" class="try-again-btn">もう一度試す</button>

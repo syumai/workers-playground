@@ -6,10 +6,18 @@ import toolsQuestions from "./tools_questions.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   // グローバル変数
-  let currentCategory = "";
-  let questions = [];
+  const allCategories = [
+    "transports",
+    "lifecycle",
+    "resources",
+    "prompts",
+    "tools",
+  ];
+  let allQuestions = [];
   let currentQuestionIndex = 0;
   let userAnswers = [];
+  let categoryScores = {};
+  let totalCorrect = 0;
 
   // カテゴリと問題データのマッピング
   const questionData = {
@@ -20,32 +28,46 @@ document.addEventListener("DOMContentLoaded", () => {
     tools: toolsQuestions,
   };
 
-  // カテゴリ選択ボタンをクリックしたときの処理
-  for (const button of document.querySelectorAll(".category-btn")) {
-    button.addEventListener("click", function () {
-      currentCategory = this.dataset.category;
-      document.getElementById(
-        "category-title"
-      ).textContent = `${currentCategory} Quiz`;
-      loadQuestions(currentCategory);
-    });
-  }
+  // スタートボタンのイベントリスナー
+  document.getElementById("start-quiz-btn").addEventListener("click", () => {
+    initializeQuiz();
+  });
 
-  // 問題をロードする関数
-  function loadQuestions(category) {
-    const data = questionData[category];
+  // クイズを初期化する関数
+  function initializeQuiz() {
+    // すべてのカテゴリから問題を集める
+    allQuestions = [];
+    categoryScores = {};
+    totalCorrect = 0;
 
-    if (!data) {
-      console.error("Error: Question data not found for category:", category);
-      alert("指定されたカテゴリの問題が見つかりませんでした。");
-      return;
+    // 各カテゴリから5問ずつランダムに選択して追加
+    for (const category of allCategories) {
+      const data = questionData[category];
+      if (!data) {
+        console.error("Error: Question data not found for category:", category);
+        continue;
+      }
+
+      // ランダムに5問選択
+      const categoryQuestions = getRandomQuestions(data.questions, 5);
+
+      // カテゴリ情報を追加
+      for (const q of categoryQuestions) {
+        q.category = category;
+      }
+
+      // 全問題リストに追加
+      allQuestions = [...allQuestions, ...categoryQuestions];
+
+      // カテゴリごとのスコアを初期化
+      categoryScores[category] = {
+        correct: 0,
+        total: categoryQuestions.length,
+      };
     }
 
-    // ランダムに5問選択
-    questions = getRandomQuestions(data.questions, 5);
-
     // ユーザーの回答を初期化
-    userAnswers = Array(questions.length).fill(null);
+    userAnswers = Array(allQuestions.length).fill(null);
 
     // 最初の問題を表示
     currentQuestionIndex = 0;
@@ -65,8 +87,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 問題を表示する関数
   function showQuestion(index) {
-    const question = questions[index];
+    const question = allQuestions[index];
+    const currentCategory = question.category;
+
+    // 進捗表示の更新
     document.getElementById("current-question").textContent = index + 1;
+    document.getElementById("total-questions").textContent =
+      allQuestions.length;
+
+    // カテゴリタイトルの更新
+    document.getElementById(
+      "category-title"
+    ).textContent = `${currentCategory} Quiz`;
+
+    // 問題テキストの更新
     document.getElementById("question-text").textContent = question.question;
 
     const optionsContainer = document.getElementById("options");
@@ -99,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ナビゲーションボタンの更新
     document.getElementById("prev-btn").disabled = index === 0;
 
-    if (index === questions.length - 1) {
+    if (index === allQuestions.length - 1) {
       document.getElementById("next-btn").style.display = "none";
       document.getElementById("submit-btn").style.display = "block";
     } else {
@@ -118,7 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // 次の問題ボタンのイベントリスナー
   document.getElementById("next-btn").addEventListener("click", () => {
-    if (currentQuestionIndex < questions.length - 1) {
+    if (currentQuestionIndex < allQuestions.length - 1) {
       currentQuestionIndex++;
       showQuestion(currentQuestionIndex);
     }
@@ -139,23 +173,42 @@ document.addEventListener("DOMContentLoaded", () => {
   // 結果を表示する関数
   function showResults() {
     // 正解数を計算
-    let correctCount = 0;
-    for (let i = 0; i < questions.length; i++) {
-      if (userAnswers[i] === questions[i].correctAnswer) {
-        correctCount++;
+    let totalCorrect = 0;
+
+    // カテゴリごとの正解数を計算
+    for (let i = 0; i < allQuestions.length; i++) {
+      const question = allQuestions[i];
+      const userAnswer = userAnswers[i];
+      const isCorrect = userAnswer === question.correctAnswer;
+
+      if (isCorrect) {
+        totalCorrect++;
+        categoryScores[question.category].correct++;
       }
     }
 
-    // スコアを表示
+    // 総合スコアを表示
     const scoreElement = document.getElementById("score");
-    scoreElement.textContent = `${correctCount} / ${questions.length} 問正解`;
+    scoreElement.textContent = `${totalCorrect} / ${allQuestions.length} 問正解`;
+
+    // カテゴリごとのスコアを表示
+    const categoryScoresElement = document.getElementById("category-scores");
+    categoryScoresElement.innerHTML = "";
+
+    for (const category of allCategories) {
+      const score = categoryScores[category];
+      const scoreItem = document.createElement("div");
+      scoreItem.className = "category-score";
+      scoreItem.textContent = `${category}: ${score.correct} / ${score.total} 問正解`;
+      categoryScoresElement.appendChild(scoreItem);
+    }
 
     // 各問題のレビューを表示
     const reviewListElement = document.getElementById("review-list");
     reviewListElement.innerHTML = "";
 
-    for (let i = 0; i < questions.length; i++) {
-      const question = questions[i];
+    for (let i = 0; i < allQuestions.length; i++) {
+      const question = allQuestions[i];
       const userAnswer = userAnswers[i];
       const isCorrect = userAnswer === question.correctAnswer;
 
@@ -166,7 +219,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const reviewQuestion = document.createElement("div");
       reviewQuestion.className = "review-question";
-      reviewQuestion.textContent = `問題 ${i + 1}: ${question.question}`;
+      reviewQuestion.textContent = `問題 ${i + 1} (${question.category}): ${
+        question.question
+      }`;
 
       const reviewAnswer = document.createElement("div");
       reviewAnswer.className = "review-answer";
@@ -191,6 +246,16 @@ document.addEventListener("DOMContentLoaded", () => {
       reviewListElement.appendChild(reviewItem);
     }
 
+    // シェアボタンのテキストを設定
+    const shareText = `MCP Quizで${totalCorrect}/${allQuestions.length}問正解しました！ #MCPQuiz`;
+    document.getElementById("share-text").value = shareText;
+
+    // Twitterシェアボタンの設定
+    const twitterButton = document.getElementById("twitter-share");
+    twitterButton.href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+      shareText
+    )}`;
+
     // 画面の切り替え
     document.querySelector(".question-container").style.display = "none";
     document.querySelector(".results-container").style.display = "block";
@@ -198,8 +263,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // もう一度試すボタンのイベントリスナー
   document.getElementById("try-again-btn").addEventListener("click", () => {
-    // 最初の画面に戻る
-    document.querySelector(".start-screen").style.display = "block";
-    document.querySelector(".results-container").style.display = "none";
+    // クイズを再初期化
+    initializeQuiz();
+  });
+
+  // シェアテキストをコピーする機能
+  document.getElementById("copy-share").addEventListener("click", () => {
+    const shareText = document.getElementById("share-text");
+    shareText.select();
+    document.execCommand("copy");
+    alert("結果をクリップボードにコピーしました！");
   });
 });
