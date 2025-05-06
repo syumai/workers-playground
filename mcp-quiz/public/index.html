@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP 2025-03-26 クイズアプリ</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <h1>Model Context Protocol 2025-03-26 クイズ</h1>
+    
+    <div class="container start-screen">
+        <h2>テストする項目を選択してください</h2>
+        <div class="category-selection">
+            <button class="category-btn" data-category="transports">Transports</button>
+            <button class="category-btn" data-category="lifecycle">Lifecycle</button>
+            <button class="category-btn" data-category="resources">Resources</button>
+            <button class="category-btn" data-category="prompts">Prompts</button>
+            <button class="category-btn" data-category="tools">Tools</button>
+        </div>
+    </div>
+
+    <div class="container question-container">
+        <h2 id="category-title"></h2>
+        <div id="progress">Question <span id="current-question">1</span> of 5</div>
+        <div id="question-text" class="question"></div>
+        <div id="options" class="options"></div>
+        
+        <div class="nav-buttons">
+            <button id="prev-btn" class="nav-btn" disabled>前の問題</button>
+            <button id="next-btn" class="nav-btn">次の問題</button>
+            <button id="submit-btn" class="nav-btn submit-btn" style="display: none;">提出</button>
+        </div>
+    </div>
+
+    <div class="container results-container">
+        <div class="results-header">
+            <h2>結果</h2>
+            <div id="score" class="score"></div>
+        </div>
+        <div id="review-list"></div>
+        <button id="try-again-btn" class="try-again-btn">もう一度試す</button>
+    </div>
+
+    <script src="js/quiz.js"></script>
+</body>
+</html>
