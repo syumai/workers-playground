@@ -1,48 +1,31 @@
-# Minimal Sandbox SDK Example
+# Go Sandbox Example
 
-A minimal Cloudflare Worker that demonstrates the core capabilities of the Sandbox SDK.
-
-## Features
-
-- **Command Execution**: Execute Python code in isolated containers
-- **File Operations**: Read and write files in the sandbox filesystem
-- **Simple API**: Two endpoints demonstrating basic sandbox operations
+A Cloudflare Worker that demonstrates the core capabilities of the Sandbox SDK to execute Go code.
 
 ## How It Works
 
-This example provides two simple endpoints:
+This example provides a single endpoint:
 
-1. **`/run`** - Executes Python code and returns the output
-2. **`/file`** - Creates a file, reads it back, and returns the contents
+1. **`/run`** - Executes Go code and returns the output
+
+## Demo
+
+* https://sandbox-go-playground.syumai.workers.dev/run
 
 ## API Endpoints
 
-### Execute Python Code
+### Execute Go Code
 
 ```bash
 GET http://localhost:8787/run
 ```
 
-Runs `python -c "print(2 + 2)"` and returns:
+Runs `go run /workspace/main.go` and returns:
 
 ```json
 {
-  "output": "4\n",
+  "output": "Hello, World! 2025-11-11T12:00:00Z\n",
   "success": true
-}
-```
-
-### File Operations
-
-```bash
-GET http://localhost:8787/file
-```
-
-Creates `/workspace/hello.txt`, reads it back, and returns:
-
-```json
-{
-  "content": "Hello, Sandbox!"
 }
 ```
 
@@ -69,9 +52,6 @@ The first run will build the Docker container (2-3 minutes). Subsequent runs are
 ```bash
 # Test command execution
 curl http://localhost:8787/run
-
-# Test file operations
-curl http://localhost:8787/file
 ```
 
 ## Deploy
