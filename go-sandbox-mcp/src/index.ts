@@ -61,20 +61,23 @@ class GoSandboxMCP extends McpAgent<Env> {
                 text: JSON.stringify(output, null, 2),
               },
             ],
+            structuredContent: output,
           };
         } catch (error) {
+          const errorOutput = {
+            output: '',
+            error: error instanceof Error ? error.message : String(error),
+            exitCode: 1,
+            success: false,
+          };
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  output: '',
-                  error: error instanceof Error ? error.message : String(error),
-                  exitCode: 1,
-                  success: false,
-                }),
+                text: JSON.stringify(errorOutput),
               },
             ],
+            structuredContent: errorOutput,
             isError: true,
           };
         }
