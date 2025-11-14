@@ -96,28 +96,11 @@ For local development:
 http://localhost:8787/callback
 ```
 
-### 4. Create KV Namespace
+### 4. KV Namespace (Automatic Provisioning)
 
-Create a KV namespace for OAuth state management:
+The KV namespace for OAuth state management will be **automatically created** when you run `wrangler dev` or `wrangler deploy`. No manual setup required!
 
-```bash
-# Create KV namespace
-npx wrangler kv:namespace create "OAUTH_KV"
-
-# For local development, create a preview namespace
-npx wrangler kv:namespace create "OAUTH_KV" --preview
-```
-
-Copy the namespace ID from the output and update `wrangler.jsonc`:
-
-```jsonc
-"kv_namespaces": [
-  {
-    "binding": "OAUTH_KV",
-    "id": "your-namespace-id-here"
-  }
-]
-```
+This project uses Cloudflare's [Automatic Resource Provisioning](https://developers.cloudflare.com/changelog/2025-10-24-automatic-resource-provisioning/) feature, which automatically creates KV namespaces based on the binding configuration in `wrangler.jsonc`.
 
 ### 5. Set Environment Variables
 

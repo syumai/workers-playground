@@ -45,13 +45,14 @@
 	 */
 	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
 	/**
-	 * KV Namespaces
+	 * KV Namespaces (Automatic Resource Provisioning)
+	 * KV namespace will be automatically created on wrangler dev/deploy
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#kv-namespaces
+	 * https://developers.cloudflare.com/changelog/2025-10-24-automatic-resource-provisioning/
 	 */
 	"kv_namespaces": [
 		{
-			"binding": "OAUTH_KV",
-			"id": "YOUR_KV_NAMESPACE_ID"
+			"binding": "OAUTH_KV"
 		}
 	],
 	"containers": [
