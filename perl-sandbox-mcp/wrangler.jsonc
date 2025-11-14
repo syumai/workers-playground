@@ -52,7 +52,8 @@
 	 */
 	"kv_namespaces": [
 		{
-			"binding": "OAUTH_KV"
+			"binding": "OAUTH_KV",
+			"id": "f23e629c093c4a588d3bd55991e097ef"
 		}
 	],
 	"containers": [

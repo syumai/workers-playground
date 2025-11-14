@@ -8,12 +8,18 @@ importers:
 
   .:
     dependencies:
+      '@cloudflare/workers-oauth-provider':
+        specifier: ^0.0.13
+        version: 0.0.13
       '@modelcontextprotocol/sdk':
         specifier: ^1.20.2
         version: 1.22.0(@cfworker/json-schema@4.1.1)
       agents:
         specifier: ^0.2.19
         version: 0.2.23(@cloudflare/workers-types@4.20251113.0)(react@19.2.0)(typescript@5.9.3)
+      just-pick:
+        specifier: ^4.2.0
+        version: 4.2.0
       zod:
         specifier: ^3.25.76
         version: 3.25.76
@@ -118,6 +124,9 @@ packages:
     engines: {node: '>=16'}
     cpu: [x64]
     os: [win32]
+
+  '@cloudflare/workers-oauth-provider@0.0.13':
+    resolution: {integrity: sha512-W9n1LHUkbEvJNsoBSVUkKUdMhGXeAfqjRoqhaKP3ky35SJ5IVRSYNV9PYff+7VxbKyX98KJjEpX0PFzLJ8ekRw==}
 
   '@cloudflare/workers-types@4.20251113.0':
     resolution: {integrity: sha512-AMntYysoQzuc1aXLjkNLmFcuyxzCrZ/dfatnt2Lw4rf3aFtnM6RZKZ+zLhb+xjgjlrI7tzC86ay3gqYqKa2Qxg==}
@@ -775,6 +784,9 @@ packages:
   json-schema@0.4.0:
     resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
 
+  just-pick@4.2.0:
+    resolution: {integrity: sha512-m6bi0P/gFq5GEQJGYfHFsdod6fogViNIhsKbPBYavqF9SKFfMKPz7kf6ROL2PblkOdaib9vN/wJ7VXhCJre5Hw==}
+
   kleur@4.1.5:
     resolution: {integrity: sha512-o+NO+8WrRiQEE4/7nwRJhN1HWpVmJm511pBHUxPLtp0BUISzlBplORYSmTclCnJvQq2tKu/sgl3xVpkc7ZWuQQ==}
     engines: {node: '>=6'}
@@ -1178,6 +1190,8 @@ snapshots:
 
   '@cloudflare/workerd-windows-64@1.20251105.0':
     optional: true
+
+  '@cloudflare/workers-oauth-provider@0.0.13': {}
 
   '@cloudflare/workers-types@4.20251113.0': {}
 
@@ -1757,6 +1771,8 @@ snapshots:
   json-schema-traverse@1.0.0: {}
 
   json-schema@0.4.0: {}
+
+  just-pick@4.2.0: {}
 
   kleur@4.1.5: {}
 
