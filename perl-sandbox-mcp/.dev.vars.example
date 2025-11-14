@@ -1,0 +1,6 @@
+ACCESS_CLIENT_ID=<Copy from "Client ID" in Cloudflare Dashboard>
+ACCESS_CLIENT_SECRET=<Copy from "Client secret" in Cloudflare Dashboard>
+ACCESS_TOKEN_URL=<Copy from "Token endpoint" in Cloudflare Dashboard>
+ACCESS_AUTHORIZATION_URL=<Copy from "Authorization endpoint" in Cloudflare Dashboard>
+ACCESS_JWKS_URL=<Copy from "Key endpoint" in Cloudflare Dashboard>
+COOKIE_ENCRYPTION_KEY=<generate using `openssl rand -hex 32`>
