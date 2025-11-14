@@ -93,10 +93,10 @@ export { PerlSandboxMCP };
 async function handleMcpRequest(req: Request, env: Env, ctx: ExecutionContext) {
   const { pathname } = new URL(req.url);
   if (pathname === '/sse' || pathname === '/sse/message') {
-    return PerlSandboxMCP.serveSSE('/sse').fetch(req, env, ctx);
+    return PerlSandboxMCP.serveSSE('/sse', { binding: 'PerlSandboxMCP' }).fetch(req, env, ctx);
   }
   if (pathname === '/mcp') {
-    return PerlSandboxMCP.serve('/mcp').fetch(req, env, ctx);
+    return PerlSandboxMCP.serve('/mcp', { binding: 'PerlSandboxMCP' }).fetch(req, env, ctx);
   }
   return new Response('Not found', { status: 404 });
 }
