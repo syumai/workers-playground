@@ -1,0 +1,29 @@
+{
+  "name": "perl-sandbox-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "An MCP server that executes arbitrary Perl code",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "cf-typegen": "wrangler types",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^0.0.13",
+    "@modelcontextprotocol/sdk": "^1.20.2",
+    "agents": "^0.2.19",
+    "just-pick": "^4.2.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cloudflare/sandbox": "*",
+    "@types/node": "^24.9.2",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.46.0"
+  },
+  "author": "",
+  "license": "MIT"
+}
