@@ -1,118 +1,118 @@
-# バグ受信箱（bug-inbox）設計
+# Bug Inbox (bug-inbox) design
 
-個人開発者が、自分のアプリの利用者から届いたバグ報告を、スクリーンショットと過去の似た報告と一緒に見て返信する受信箱。実装はこの文書の合意後。本文は設計のみ。
+A bug inbox for a solo developer: reports from people using their app, with the screenshot and similar past reports on one screen, and a reply from that screen. Implementation waits until this document is agreed. This document is design only.
 
-調査時点: 2026-10-24。`workers-go` の `main` は `a38be30753a413b075ec7344faa6a26acb436d42`（2026-09-24、PR #237）。生成バインディングの元は `@cloudflare/workers-types@5.20260906.1`（`exp/cloudflare.WorkersTypesVersion`）。`exp/deno` はこのサービスでは使わない。
+Researched on 2026-10-24. `workers-go` `main` is `a38be30753a413b075ec7344faa6a26acb436d42` (2026-09-24, PR #237). Generated bindings come from `@cloudflare/workers-types@5.20260906.1` (`exp/cloudflare.WorkersTypesVersion`). This service does not use `exp/deno`.
 
-## 置き場所
+## Where it lives
 
-`syumai/workers-playground` の直下 `bug-inbox/`。
+`bug-inbox/` at the top of `syumai/workers-playground`.
 
-このリポジトリは実験 1 つが直下のディレクトリで、Go の例は `Makefile` と Wrangler 設定と `go.mod` を持つ。`docs/` は無い。設計は将来の実装と同じ `bug-inbox/DESIGN.md` に置く。
+Each experiment in this repo is a top-level directory. The Go examples use a `Makefile`, a Wrangler config, and a `go.mod`. There is no `docs/` directory. The design stays in `bug-inbox/DESIGN.md`, next to the future implementation.
 
-`go-wasm-playground` はブラウザ Wasm の小例、`go-playground` は 2019 年で止まったほぼ空のリポジトリなので、Workers の binding を置く場所にはしない。
+`go-wasm-playground` is a handful of browser Wasm samples. `go-playground` is nearly empty and last changed in 2019. Neither is a home for Workers bindings.
 
-## 三つの候補
+## Three candidates
 
-どれも、画面に API を並べるカタログにはしない。一文は「誰が、何に困っていて、このサービスで何ができるか」。
+None of these is a catalog of API endpoints. Each pitch is one sentence: who has the problem, and what they can do.
 
-### 1. バグ受信箱（採用）
+### 1. Bug Inbox (chosen)
 
-個人開発者が、利用者からのバグ報告（フォームまたはメール、文章とスクリーンショット）を一箇所で開き、似た過去の報告を見ながら返信する。
+A solo developer opens bug reports (form or email, text and a screenshot) in one place and replies while looking at similar past reports.
 
-| 機能 | 入り方 |
+| Feature | How it shows up |
 | --- | --- |
-| フォーム、Hono、Rate Limit、`cf` | 利用者はログインせず報告する。連投を止め、どの国から届いたかを報告に残す |
-| メールの受信と返信 | 報告の入口と、開発者からの返事そのもの |
-| R2、Images、AI、Vectorize | スクショを残し、一覧用のサムネイル、要約、過去の似た報告 |
-| Queue、Workflow | 受け付けた直後に画面を返し、要約から保存までを後ろで終わらせる。返信ボタンが Workflow の「送ってよい」になる |
-| Durable Object、WebSocket | 開いている報告に、処理の完了や下書きの返信文がそのまま出る。未返信のまま時間がたったら開発者に知らせる |
-| KV、Cache、Analytics | 報告の状態、公開する既知の不具合ページ、今日何件届いたか |
-| RPC | フォーム、メール受信、Workflow が同じ「報告を作る・返信する」を呼ぶ |
+| Form, Hono, Rate Limit, `cf` | Reporters submit without an account. Repeat submits are limited, and the report records the country it came from |
+| Inbound and outbound email | The way a report arrives, and the developer's reply |
+| R2, Images, AI, Vectorize | Keep the screenshot, a list thumbnail, a summary, and similar past reports |
+| Queue, Workflow | Return a receipt immediately, then finish summary and storage in the background. The reply button is the Workflow's "ok to send" |
+| Durable Object, WebSocket | An open report updates in place when processing finishes or a draft reply arrives. If it stays unanswered, the developer is notified |
+| KV, Cache, Analytics | Report status, a public known-issues page, and how many arrived today |
+| RPC | The form, inbound mail, and the Workflow call the same "create a report" and "send a reply" operations |
 
-Secrets Store、Tail、version metadata、Hyperdrive、Dispatch は、報告を読んで返す仕事の外なので管理画面に置く。
+Secrets Store, Tail, version metadata, Hyperdrive, and Dispatch sit outside reading and answering a report, so they live on the admin screen.
 
-### 2. あとで読む
+### 2. Read later
 
-自分が URL を投げ、本文と要約を残し、似た記事を後から探す。
+You save a URL, keep the article text and a summary, and find similar articles later.
 
-メール転送での保存、要約、類似検索は自然。スクリーンショット、公開ページ、レート制限、報告者の国、開いている画面の同期は、一人が記事を貯める目的には付きにくい。前回の「余白」と同じ仕事を、名前だけ分かりやすくしたものに近い。
+Saving by forwarded email, summaries, and similarity search fit. Screenshots, a public page, rate limiting, the sender's country, and live sync of an open screen do not fit someone filing articles for themselves. This is close to the earlier Yohaku idea with a plainer name.
 
-### 3. 現場写真報告
+### 3. Field photo reports
 
-大家や設備担当が、現場から届く写真付きの「ここが壊れている」を案件にして、依頼主にメールで返す。
+A landlord or facilities owner turns "this is broken" photos from a site into a case and emails the result back to the requester.
 
-写真、要約、似た案件、メールは自然。公開の既知不具合ページや、開発者が自分のアプリに対して使う必然は弱い。syumai が日常で開くサービスにはなりにくい。
+Photos, summaries, similar cases, and email fit. A public known-issues page, and a reason for a developer to use it on their own app, are weak. syumai is unlikely to open this day to day.
 
-バグ受信箱を採る。届ける、残す、似たものを探す、返信する、がそのまま利用者と開発者の操作で、メールとスクリーンショットが装飾にならない。使う人はオーナー一人の開発者で、報告者はログインしない。
+Bug Inbox is the one to build. Submit, keep, find similar, and reply are the reporter's and the developer's actual actions, so email and screenshots are the product. The developer is the owner alone. Reporters do not log in.
 
-## 誰が何をするか
+## Who does what
 
-登場人物は二人。
+Two people.
 
-- **報告者。** オーナーのアプリを使っている人。アカウントは無い。
-- **開発者。** オーナー本人。受信箱を開くときに共有シークレットを入れる。照合は Web Crypto の一定時間比較。報告 ID は `crypto.randomUUID`。
+- **Reporter.** Someone using the owner's app. No account.
+- **Developer.** The owner. Opening the inbox requires a shared secret, compared with a constant-time Web Crypto check. Report IDs are `crypto.randomUUID`.
 
-### 画面
+### Screens
 
-| 画面 | 経路 | 誰が見るか | 見えるもの |
+| Screen | Path | Who | What they see |
 | --- | --- | --- | --- |
-| 報告フォーム | `GET /report` | 報告者 | 起きたこと、再現手順、スクリーンショット |
-| 受け付けた | `GET /report/sent?id=` | 報告者 | 受付番号。要約はまだ無くてよい |
-| 受信箱 | `GET /` | 開発者 | 新しい順の一覧。サムネイル、一行要約、状態（処理中 / 未返信 / 返信済み / 既知の不具合）、今日の件数 |
-| 報告 | `GET /reports/:id` | 開発者 | 本文、スクショ、要約、似た過去の報告、返信欄。処理が終わるとリロードせずに要約と類似が出る |
-| 既知の不具合 | `GET /known` | 誰でも | 開発者が「既知」にした報告のタイトルと要約 |
-| 管理 | `GET /admin` | 開発者 | 下の「管理に置くもの」 |
+| Report form | `GET /report` | Reporter | What happened, steps to reproduce, a screenshot |
+| Received | `GET /report/sent?id=` | Reporter | A receipt number. The summary can still be missing |
+| Inbox | `GET /` | Developer | Newest first. Thumbnail, one-line summary, status (processing / unanswered / replied / known issue), today's count |
+| Report | `GET /reports/:id` | Developer | Body, screenshot, summary, similar past reports, reply box. When processing finishes, the summary and similar reports appear without a reload |
+| Known issues | `GET /known` | Anyone | Title and summary of reports the developer marked known |
+| Admin | `GET /admin` | Developer | The items under "On the admin screen" below |
 
-### 報告者がフォームから送る
+### A reporter submits the form
 
-1. `/report` を開く。Hono がページを出し、Go のミドルウェアがレート制限を見る。超えていたら「しばらく待って」と出し、報告は作らない。
-2. 文章と画像を送る。ミドルウェアは `cf` から国とコロを読む。
-3. 受付番号を KV に書き、画像の原本はすぐ R2 に置き、Queue に「この報告を処理して」を積んで、`/report/sent` を返す。要約が終わるまで待たせない。
-4. 背後の Workflow がサムネイル、要約、埋め込み、類似の下調べ、開発者への「新しい報告」メールまで進める。
-5. 開発者がその報告を開いていれば、要約と類似が画面に足される。
+1. They open `/report`. Hono serves the page. Go middleware checks the rate limit. Over the limit, the page says to wait, and no report is created.
+2. They send text and an image. Middleware reads country and colo from `cf`.
+3. The receipt number is written to KV, the original image goes straight to R2, a "process this report" message is queued, and the response is `/report/sent`. The reporter does not wait for the summary.
+4. The Workflow in the background produces the thumbnail, summary, embedding, a first look at similar reports, and a "new report" email to the developer.
+5. If the developer already has that report open, the summary and similar reports appear on the page.
 
-### 報告者がメールで送る
+### A reporter sends email
 
-1. 決めた宛先（例: `bugs@` のオーナーのドメイン）に、本文と画像付きで送る。
-2. メール用の Worker が受け、画像を取り出し、本体の RPC「報告を作る」を呼ぶ。フォームと同じ Queue と Workflow に入る。
-3. 受付番号を、そのメールへの返信で返す。
+1. They mail the body and images to a chosen address (for example `bugs@` on the owner's domain).
+2. The mail Worker accepts it, pulls out images, and calls the main Worker's RPC "create a report". That enters the same Queue and Workflow as the form.
+3. The receipt number goes back as a reply to that email.
 
-### 開発者が返信する
+### The developer replies
 
-1. `/` で未返信を開き、`/reports/:id` に入る。
-2. 要約と、似た過去の報告（タイトルと受付番号）を読む。スクショは大きく表示し、一覧にはサムネイルだけ出る。
-3. 「返信の下書き」を押すと、返信欄に文章が少しずつ出る。
-4. 直して「送信」を押す。Workflow が報告者のアドレスへメールし、状態が返信済みになる。報告者がメールで届いていた場合は、そのスレッドへの返信にする。
-5. 未返信のまま数時間たつと、開発者自身に「まだ返していない」メールが届く。
+1. They open an unanswered row on `/` and go to `/reports/:id`.
+2. They read the summary and similar past reports (title and receipt number). The screenshot is large on the detail page. The list shows only the thumbnail.
+3. "Draft reply" fills the reply box gradually.
+4. They edit and press send. The Workflow emails the reporter and the status becomes replied. If the report arrived by email, the message is a reply on that thread.
+5. If it stays unanswered for several hours, the developer gets a "still unanswered" email.
 
-### 既知の不具合を公開する
+### Publishing a known issue
 
-開発者が報告を「既知の不具合」にすると、`/known` にタイトルと要約が出る。このページはキャッシュする。下書きや未公開の報告は出さない。
+When the developer marks a report as a known issue, its title and summary appear on `/known`. That page is cached. Drafts and unpublished reports stay off it.
 
-## プロセス
+## Processes
 
-Go のブロックする入口はプロセスにつき一つ。本体は `hono.ServeMiddleware`。Durable Object、Workflow、RPC、Queue の消費登録はその前に行う。`workers.Serve` は使わない。`_examples` が `workers.Serve` の前に登録している形を、Hono のブロックに置き換える。実装時に、Workflow と Durable Object のトリガーでこの置換が動くことを例と突き合わせて確認する。
+Each process has one blocking Go entry. The main process blocks on `hono.ServeMiddleware`. Durable Object, Workflow, RPC, and Queue consumer registration happen before that. `workers.Serve` is not used. The `_examples` pattern of registering handlers and then blocking on `workers.Serve` becomes a block on the Hono middleware. During implementation, check that Workflow and Durable Object triggers still run with that substitution, against the examples.
 
-`email.Handle` と `tail.Handle` は登録とブロックが分かれていない（`a38be307` 時点。Queue の `ConsumeNonBlock` に相当する公開関数が無い）。受信メールと Tail は別 Worker にする。本体は送信 binding だけを使う。
+`email.Handle` and `tail.Handle` both register and block (`a38be307`; there is no public non-blocking register comparable to Queue's `ConsumeNonBlock`). Inbound mail and Tail are separate Workers. The main Worker uses only the send binding.
 
 ```text
-報告者 ──フォーム──► bug-inbox（Hono + Go）
-                      │ Queue → Workflow
-                      │ 返信メール、開発者への通知
-報告者 ──メール────► bug-inbox-mail ──RPC──► bug-inbox
-bug-inbox の trace ──► bug-inbox-tail ──► KV（管理画面が読む）
+reporter -- form --> bug-inbox (Hono + Go)
+                       | Queue -> Workflow
+                       | reply email, notice to the developer
+reporter -- email --> bug-inbox-mail -- RPC --> bug-inbox
+bug-inbox traces --> bug-inbox-tail --> KV (read by /admin)
 ```
 
-| プロセス | 入口 | 役割 |
+| Process | Entry | Role |
 | --- | --- | --- |
-| `bug-inbox` | `hono.ServeMiddleware` | フォーム、受信箱、報告画面、既知の不具合、返信の送信、Queue の生産と消費、Durable Object、Workflow、RPC |
-| `bug-inbox-mail` | `email.Handle` | 届いたメールを報告にし、受付返信をする |
-| `bug-inbox-tail` | `tail.Handle` | 本体の trace を KV に書き、管理画面に出す |
+| `bug-inbox` | `hono.ServeMiddleware` | Form, inbox, report page, known issues, sending replies, Queue produce and consume, Durable Object, Workflow, RPC |
+| `bug-inbox-mail` | `email.Handle` | Turn inbound mail into a report and reply with the receipt number |
+| `bug-inbox-tail` | `tail.Handle` | Write the main Worker's traces to KV and show them on `/admin` |
 
-Wrangler の `main` は生成された `build/worker.mjs` の `fetch` をそのまま使わない。生成物は `handleRequest` を呼ぶが、本体は `workers.Serve` を起動しない。`js/index.mjs` が Hono の経路を持ち、リクエストごとに Wasm を起こして `binding.runHonoMiddleware(next)` を呼ぶ。経路の中身は Service binding 経由で RPC `ReportService` を呼ぶ。`queue` と、生成された Durable Object / Workflow / `WorkerEntrypoint` のクラスは `build/worker.mjs` から再エクスポートする。
+Wrangler `main` does not use the generated `build/worker.mjs` `fetch` as-is. That fetch calls `handleRequest`, and the main Worker never starts `workers.Serve`. `js/index.mjs` owns the Hono routes, boots Wasm per request, and calls `binding.runHonoMiddleware(next)`. Route bodies call RPC `ReportService` through a service binding. `queue` and the generated Durable Object, Workflow, and `WorkerEntrypoint` classes are re-exported from `build/worker.mjs`.
 
-クラス名は、`workers-assets-gen` のフラグ、Go の `Register`、Wrangler の `class_name` / `entrypoint` で一致させる。
+Class names match across the `workers-assets-gen` flags, Go `Register`, and Wrangler `class_name` / `entrypoint`.
 
 ```text
 go run github.com/syumai/workers-go/cmd/workers-assets-gen@<pin> \
@@ -123,89 +123,89 @@ go run github.com/syumai/workers-go/cmd/workers-assets-gen@<pin> \
   -entrypoints=ReportService:create,draftReply,sendReply,markKnown
 ```
 
-## 各機能が画面のどこに出るか
+## Where each feature appears
 
-`exp/internal/jsrt` は生成バインディングが内部で使うヘルパなので、画面には出さない。`exp/internal/gen` はコード生成の入力なのでデプロイしない。`exp/deno` は対象外。
+`exp/internal/jsrt` is the helper generated bindings call internally, so it has no screen. `exp/internal/gen` is codegen input and is not deployed. `exp/deno` is out of scope.
 
-安定版 `cloudflare/` の D1、Workers の Cron、Sockets の直接 API は機能に加えない。Sockets は、管理画面で Hyperdrive を有効にしたときに `Hyperdrive.Connect` の先でのみ使われる。Queue の消費は、`exp/cloudflare/queues` が生産側だけなので、安定版 `cloudflare/queues.ConsumeNonBlock` で行う。消費は「処理を後ろで終わらせる」ために必要で、画面用の別デモにはしない。
+D1, Workers Cron, and the direct Sockets API in stable `cloudflare/` are not product features. Sockets are used only behind `Hyperdrive.Connect` when Hyperdrive is turned on from `/admin`. Queue consumption uses stable `cloudflare/queues.ConsumeNonBlock` because `exp/cloudflare/queues` generates only the producer. Consumption exists so accepted work finishes. It is not a separate demo screen.
 
-### 報告の流れに入るもの
+### On the report flow
 
-| パッケージ | 製品での仕事 | 画面 | binding / 資源 |
+| Package | Job in the product | Screen | Binding / resource |
 | --- | --- | --- | --- |
-| `exp/hono` | 全ページの手前。開発者ページは共有シークレット、`/report` と `/known` は通す。レート制限と `cf` の読み取りもここ | 全部 | なし。JS の Hono が経路を持つ |
-| `exp/cloudflare/ratelimit` | 報告フォームの連投を止める。キーは IP | `/report` | `CLIP` ではなく `REPORT`。期間あたりの上限は小さめ |
-| `exp/cloudflare/cf` | 報告に「どの国・どのコロから届いたか」を残し、詳細に表示する | 報告詳細 | なし |
-| `exp/cloudflare/kv` | 受付番号、状態、要約、報告者アドレス、既知フラグ | 受信箱、詳細、既知の不具合 | KV `REPORTS` |
-| `exp/cloudflare/r2` | スクリーンショットの原本 | 報告詳細 | R2 `SHOTS`。一覧には置かない |
-| `exp/cloudflare/images` | 一覧用サムネイルを一サイズで作る | 受信箱 | Images `IMAGES`。画像が無ければ段を飛ばす |
-| `exp/cloudflare/ai` | 報告の短い要約。返信欄へ流す下書き | 詳細の要約と返信欄 | AI `AI` |
-| `exp/cloudflare/vectorize` | 過去の報告との類似。詳細に受付番号つきで出す | 報告詳細 | index `SIMILAR`。次元は埋め込みモデルに合わせる |
-| `exp/cloudflare/queues` | フォームとメール受付の直後に処理を積む。`Send`。滞留は `Metrics` で管理ではなく受信箱の「処理待ち」件数に使う | 受け付けた直後、受信箱の待ち件数 | producer `REPORT_JOBS` |
-| `exp/cloudflare/workflows` | サムネイル、要約、埋め込み、類似の下調べ、開発者への通知メール。`Sleep` は通知の短い待ち。`WaitForEvent` は開発者の「送信」。失敗のうち報告が読めないものは `NonRetryable` | 受け付けから返信まで | binding `PROCESS`、class `ProcessReport` |
-| `exp/cloudflare/analytics` | 受け付け、返信、既知化を 1 点ずつ書き、受信箱の「今日の件数」に出す | 受信箱 | dataset `USAGE` |
-| `exp/cloudflare/cache` | `/known` の HTML を match / put する | 既知の不具合 | Cache API。binding は不要 |
-| `exp/cloudflare/websocket` | 返信の下書きトークンを `Upgrade` で流す。Upgrade のあとすぐ戻り、読み書きは goroutine | 報告詳細の返信欄 | なし |
-| `exp/cloudflare/durableobjects` | 報告ごとに `ReportRoom`。開いている詳細へ要約完了を配る。下書きの途中式は storage。`SQL().OpenDB()` はその報告の状態変化（受付、要約完了、返信、既知化）の履歴。alarm は未返信のままの通知 | 報告詳細 | DO `REPORT_ROOM`、SQLite migration |
-| `exp/cloudflare/rpc` | `ReportService` の `create`、`draftReply`、`sendReply`、`markKnown`。Hono、メール Worker、Workflow が呼ぶ | フォーム、詳細、メール受付 | service `REPORT_SERVICE`、entrypoint `ReportService`、自分自身へ |
-| `exp/cloudflare/email` | 本体は送信（受付の控えはメール Worker、新しい報告と未返信リマインドと返事は本体またはメール Worker の `Send` / `Reply`）。受信は `Handle` と `ForwardableEmailMessage` | メール、報告詳細の送信 | `send_email` の `EMAIL`。受信は Email Routing が `bug-inbox-mail` へ |
+| `exp/hono` | In front of every page. Developer pages require the shared secret. `/report` and `/known` do not. Rate limit and the `cf` read happen here | All | None. JS Hono owns the routes |
+| `exp/cloudflare/ratelimit` | Stop repeat submits on the report form. Key is the IP | `/report` | Name the binding `REPORT` (not `CLIP`). Keep the limit per period small |
+| `exp/cloudflare/cf` | Store which country and colo the report came from, and show that on the detail page | Report detail | None |
+| `exp/cloudflare/kv` | Receipt number, status, summary, reporter address, known-issue flag | Inbox, detail, known issues | KV `REPORTS` |
+| `exp/cloudflare/r2` | Original screenshot | Report detail | R2 `SHOTS`. Not used for the list |
+| `exp/cloudflare/images` | One thumbnail size for the list | Inbox | Images `IMAGES`. Skip the step when there is no image |
+| `exp/cloudflare/ai` | A short summary, and a draft streamed into the reply box | Summary and reply box on the detail page | AI `AI` |
+| `exp/cloudflare/vectorize` | Similarity to past reports, shown with receipt numbers | Report detail | Index `SIMILAR`. Dimensions match the embedding model |
+| `exp/cloudflare/queues` | Enqueue processing as soon as the form or email is accepted. `Send`. Backlog from `Metrics` is the inbox "waiting" count, not an admin chart | Just after accept, waiting count on the inbox | Producer `REPORT_JOBS` |
+| `exp/cloudflare/workflows` | Thumbnail, summary, embedding, a first look at similar reports, and the notice email to the developer. `Sleep` is a short wait before that notice. `WaitForEvent` is the developer's send. Failures that leave the report unreadable use `NonRetryable` | From accept through reply | Binding `PROCESS`, class `ProcessReport` |
+| `exp/cloudflare/analytics` | One point each for accepted, replied, and marked known, shown as today's count on the inbox | Inbox | Dataset `USAGE` |
+| `exp/cloudflare/cache` | `match` / `put` the HTML for `/known` | Known issues | Cache API. No binding |
+| `exp/cloudflare/websocket` | Stream draft-reply tokens with `Upgrade`. Return immediately after Upgrade; read and write on a goroutine | Reply box on the report detail | None |
+| `exp/cloudflare/durableobjects` | One `ReportRoom` per report. Push "summary ready" to an open detail page. In-progress draft text lives in storage. `SQL().OpenDB()` is that report's history (accepted, summary ready, replied, marked known). The alarm is the unanswered notice | Report detail | DO `REPORT_ROOM`, SQLite migration |
+| `exp/cloudflare/rpc` | `ReportService` methods `create`, `draftReply`, `sendReply`, `markKnown`. Called from Hono, the mail Worker, and the Workflow | Form, detail, mail intake | Service `REPORT_SERVICE`, entrypoint `ReportService`, bound to this Worker |
+| `exp/cloudflare/email` | The main Worker sends (the receipt reply is the mail Worker; the new-report notice, the unanswered reminder, and the reply use `Send` / `Reply` on the main Worker or the mail Worker). Inbound uses `Handle` and `ForwardableEmailMessage` | Email, send on the report detail | `send_email` binding `EMAIL`. Email Routing delivers inbound mail to `bug-inbox-mail` |
 
-`cf.FromRequest` は、Hono ミドルウェアの `*http.Request` に request.cf が乗っていることが条件。実装の最初のスパイクで確認する。読めない場合は、JS 側が国とコロをヘッダで渡す。
+`cf.FromRequest` works when the Hono middleware's `*http.Request` carries `request.cf`. Confirm that in the first implementation spike. If it does not, the JS side passes country and colo in headers.
 
-Durable Object の hibernating WebSocket（`UpgradeHibernating` と `AcceptHibernatingConn`）は、報告詳細を開いたまま要約完了を受ける接続に使う。トークンを連続して流す返信下書きは、hibernate 向きではないので通常の `websocket.Upgrade` に分ける。
+The Durable Object hibernating WebSocket (`UpgradeHibernating` and `AcceptHibernatingConn`) is the connection that stays on an open report until the summary is ready. The draft reply streams tokens continuously, which does not suit hibernation, so that stream uses the plain `websocket.Upgrade`.
 
-### 管理画面に置くもの
+### On the admin screen
 
-報告を読んで返す操作には出てこない。`/admin` に「設定されているか」と、Tail の直近の失敗を出す。未設定でもフォームから返信までの流れは動く。
+These do not appear while reading or answering a report. `/admin` shows whether each one is configured, plus recent Tail failures. The path from the form to a reply still works when they are unset.
 
-| パッケージ | 管理画面での意味 | 未設定のとき |
+| Package | What `/admin` shows | When unset |
 | --- | --- | --- |
-| `exp/cloudflare/versions` | 動いている Worker の id、tag、timestamp | binding 名 `CF_VERSION_METADATA`。フッターにも同じ一行を出してよいが、利用者の目的ではない |
-| `exp/cloudflare/tail` | 本体の trace を別 Worker が KV に残し、失敗した受付や Workflow を見る | Tail が無いと管理の「直近の失敗」が空になる。報告の送受信は動く |
-| `exp/cloudflare/secretsstore` | 外部サイトに埋め込む報告フォーム用の署名鍵が読めるか。本体の共有シークレットは Wrangler secret のままにし、置き場を二つにしない | 埋め込みフォームは作らない。`/report` は動く |
-| `exp/cloudflare/hyperdrive` | 報告の長期保管用 Postgres に繋がるか。`Connect` を `database/sql` の dialer にする | 報告は KV、R2、ReportRoom の SQLite だけで足りる |
-| `exp/cloudflare/dispatch` | 要約の前に、名前空間内の分類 Worker へ本文を渡せるか。`GetClient` | 分類は本体の Workers AI だけにする |
+| `exp/cloudflare/versions` | id, tag, and timestamp of the running Worker | Binding name `CF_VERSION_METADATA`. The same line may also sit in the footer, but it is not why anyone opens the inbox |
+| `exp/cloudflare/tail` | A separate Worker stores the main Worker's traces in KV so failed intakes and Workflows can be read | Without Tail, "recent failures" on `/admin` is empty. Sending and receiving reports still works |
+| `exp/cloudflare/secretsstore` | Whether the signing key for an embeddable report form on another site can be read. The inbox shared secret stays a Wrangler secret, so secrets are not stored in two places | Do not build the embeddable form. `/report` still works |
+| `exp/cloudflare/hyperdrive` | Whether Postgres for long-term report storage connects. Use `Connect` as a `database/sql` dialer | KV, R2, and ReportRoom SQLite are enough |
+| `exp/cloudflare/dispatch` | Whether, before the summary, the body can be handed to a classifier Worker in the namespace via `GetClient` | Classification is Workers AI on the main Worker only |
 
-## ディレクトリ
+## Directory layout
 
 ```text
 bug-inbox/
-  DESIGN.md                 # この PR はこれだけ
-  README.md                 # 実装時。使い方
+  DESIGN.md                 # this PR is only this file
+  README.md                 # at implementation time: how to use it
   go.mod                    # module github.com/syumai/workers-playground/bug-inbox
   go.sum
-  package.json              # hono、wrangler
-  wrangler.jsonc            # 本体
+  package.json              # hono, wrangler
+  wrangler.jsonc            # main Worker
   Makefile
-  main.go                   # Register と hono.ServeMiddleware
-  js/index.mjs              # Hono。生成クラスを再エクスポート
-  mail/main.go              # email.Handle のみ
+  main.go                   # Register calls and hono.ServeMiddleware
+  js/index.mjs              # Hono. Re-export generated classes
+  mail/main.go              # email.Handle only
   mail/wrangler.jsonc
-  tail/main.go              # tail.Handle のみ
+  tail/main.go              # tail.Handle only
   tail/wrangler.jsonc
 ```
 
-モジュールは一つ。`mail` と `tail` は別の `main`。
+One module. `mail` and `tail` are separate `main` packages.
 
-## ビルドとピン
+## Build and pin
 
-最新タグ `v0.36.0`（2026-09-21、`ba33a670`）の `exp/` は `exp/hono` だけ。`exp/cloudflare` と `exp/internal` は `main` の `a38be307` にある。タグが付くまで require はこのコミットにする。
+The latest tag `v0.36.0` (2026-09-21, `ba33a670`) has only `exp/hono` under `exp/`. `exp/cloudflare` and `exp/internal` are on `main` at `a38be307`. Until a tag contains them, require that commit.
 
 ```bash
 go get github.com/syumai/workers-go@a38be30753a413b075ec7344faa6a26acb436d42
 ```
 
-Go が書く pseudo-version は、コミット時刻（UTC 2026-09-23 18:49:45）から `v0.36.1-0.20260923184945-a38be30753a4` になる想定。実装時は `go get` の出力を採用する。`workers-assets-gen` は同じバージョンを `go run ...@<そのバージョン>` で起動する。`replace` は、手元で `workers-go` を同時に直すときだけにし、デプロイ用の `go.mod` には置かない。
+The pseudo-version Go writes should be `v0.36.1-0.20260923184945-a38be30753a4`, from the commit time (UTC 2026-09-23 18:49:45). At implementation time, keep whatever `go get` prints. Run `workers-assets-gen` at the same version with `go run ...@<that version>`. Use `replace` only while editing `workers-go` locally. Leave it out of the `go.mod` used to deploy.
 
-toolchain は Go 1.24 以上（`workers-go` の README の要件。モジュールの `go` 行は 1.21.3）。
+The toolchain is Go 1.24 or newer (the `workers-go` README requirement; the module's `go` line is 1.21.3).
 
-ビルドは `-mode=go`。TinyGo にはしない。生成コードのジェネリクスと、Durable Object の SQL ドライバの `database/sql` を使うため。
+Build with `-mode=go`. Do not use TinyGo. Generated code uses generics, and the Durable Object SQL driver uses `database/sql`.
 
-Wrangler は 4 系。テンプレートの `wrangler@3.109.2` は、Workflows と SQLite 付き Durable Object の設定を実装時点のスキーマと揃えない。以下のキーは意図であり、入っている Wrangler の schema を優先する。
+Use Wrangler 4. The template's `wrangler@3.109.2` does not match the schema needed for Workflows and SQLite-backed Durable Objects at implementation time. The keys below are intent. The installed Wrangler schema wins.
 
-`compatibility_date` は `2026-10-24`。古い例の `streams_enable_constructors` はこの日付では足さない。
+`compatibility_date` is `2026-10-24`. Do not add the older examples' `streams_enable_constructors` flag at this date.
 
-logs と traces を両方有効にする。
+Enable both logs and traces.
 
 ```jsonc
 {
@@ -216,13 +216,13 @@ logs と traces を両方有効にする。
 }
 ```
 
-本体の `tail_consumers` は `bug-inbox-tail` を指す。traces だけでは `exp/cloudflare/tail` のハンドラは走らない。
+The main Worker's `tail_consumers` points at `bug-inbox-tail`. Traces alone do not run the `exp/cloudflare/tail` handler.
 
-スクリプトサイズの上限は、2026-10-12 時点の [Workers Limits](https://developers.cloudflare.com/workers/platform/limits/) で両プラン 64 MiB（非圧縮）。起動は 1 秒。無料プランの CPU はリクエストあたり 10 ms。Go Wasm の起動と AI・画像・Workflow は 10 ms を超えやすい。デプロイ先は Workers Paid を前提にし、実装時に `wrangler check startup` と `wrangler deploy --dry-run --outdir` で起動時間とサイズを見る。`wrangler dev` はプランに依存しない。
+As of the 2026-10-12 [Workers Limits](https://developers.cloudflare.com/workers/platform/limits/), the script size limit is 64 MiB uncompressed on both plans. Startup is 1 second. The Free plan allows 10 ms of CPU per request. Go Wasm startup plus AI, images, and Workflows will often exceed 10 ms. Deploy on Workers Paid. During implementation, check startup time and size with `wrangler check startup` and `wrangler deploy --dry-run --outdir`. `wrangler dev` does not depend on the plan.
 
-## 設定の骨子
+## Config sketch
 
-秘密と本番の資源 ID はコミットしない。リモート ID を `wrangler.jsonc` に書くかは実装の最初に決める。プレイグラウンドの一部の例は実 ID をコミットしているが、バグ受信箱では秘密と本番 ID をリポジトリに置かない。
+Do not commit secrets or production resource IDs. Decide at the start of implementation whether remote IDs go in `wrangler.jsonc`. Some playground examples commit real IDs. Bug Inbox keeps secrets and production IDs out of the repo.
 
 ```jsonc
 {
@@ -253,7 +253,7 @@ logs と traces を両方有効にする。
 }
 ```
 
-管理画面用。未設定でも報告の送受信は動く。
+For `/admin`. Sending and receiving reports still works when these are unset.
 
 ```jsonc
 {
@@ -263,66 +263,66 @@ logs と traces を両方有効にする。
 }
 ```
 
-メール Worker は `send_email` と、本体への service binding `REPORT_SERVICE`。Tail Worker は同じ KV `REPORTS`。
+The mail Worker has `send_email` and a service binding `REPORT_SERVICE` to the main Worker. The Tail Worker uses the same KV `REPORTS`.
 
-## 作る資源と費用
+## Resources and cost
 
-個人のアプリ一つか二つに届く報告の量に抑える。included quota の数字は実装日に各製品の料金ページで見る。
+Keep the volume to the reports from one or two personal apps. Read each product's pricing page for included quota on the day of implementation.
 
-| 資源 | 役割 | 見立て |
+| Resource | Role | Expectation |
 | --- | --- | --- |
-| Worker 三つ | 本体、メール、Tail | 無料枠は 10 万リクエスト/日、CPU 10 ms。[Limits](https://developers.cloudflare.com/workers/platform/limits/) のサイズは両プラン 64 MiB。デプロイは Paid 前提 |
-| KV、R2 | 状態とスクショ原本 | 無料枠がある。画像は R2 |
-| Queue | 受付直後の処理 | 報告の回数だけ積む |
-| Durable Object `ReportRoom` | 開いている報告と未返信アラーム | オブジェクトは報告の数。アラームは未返信の通知だけ |
-| Workflow `ProcessReport` | 受付から返信可能になるまで | 報告ごとに 1 インスタンス |
-| Workers AI | 要約と返信下書きと埋め込み | ニューロン課金。モデルは短い文章向けを一つずつ固定 |
-| Vectorize | 似た報告 | 本数は報告の数。次元は埋め込みに合わせ、上げすぎない |
-| Analytics Engine | 今日の件数 | 受付、返信、既知化の 3 種 |
-| Rate Limit | フォームの連投 | namespace は 1 |
-| Cache API | `/known` | 追加の資源は不要 |
-| version metadata | 管理画面 | 追加料金なし |
-| Images | サムネイル | 変換は従量になりうる。幅は一つに固定 |
-| Email Routing と `send_email` | 受付と返信 | 受信はゾーンの機能。送信先は報告者と開発者のアドレスに限定。ドメインが要る |
-| Secrets Store、Hyperdrive、Dispatch | 管理画面の任意項目 | 作らなくてよい。Dispatch は Workers for Platforms が使えるアカウントだけ |
+| Three Workers | Main, mail, Tail | Free includes 100,000 requests/day and 10 ms CPU. [Limits](https://developers.cloudflare.com/workers/platform/limits/) size is 64 MiB on both plans. Deploy assumes Paid |
+| KV, R2 | Status and original screenshots | Both have a free allowance. Images go to R2 |
+| Queue | Work immediately after accept | One message per report |
+| Durable Object `ReportRoom` | The open report and the unanswered alarm | One object per report. The alarm is only the unanswered notice |
+| Workflow `ProcessReport` | From accept until a reply can be sent | One instance per report |
+| Workers AI | Summary, reply draft, embeddings | Billed in neurons. Pin one short-text model for each job |
+| Vectorize | Similar reports | Vector count equals report count. Match dimensions to the embedding and do not raise them further |
+| Analytics Engine | Today's count | Three kinds of points: accepted, replied, marked known |
+| Rate Limit | Repeat submits on the form | One namespace |
+| Cache API | `/known` | No extra resource to create |
+| version metadata | `/admin` | No extra charge |
+| Images | Thumbnails | Transformations can be metered. Fix one width |
+| Email Routing and `send_email` | Intake and replies | Inbound mail is a zone feature. Limit recipients to the reporter and the developer. A domain is required |
+| Secrets Store, Hyperdrive, Dispatch | Optional `/admin` items | Fine to skip. Dispatch needs an account that can use Workers for Platforms |
 
-D1 は作らない。`exp/` に D1 が無く、この受信箱の保管は KV、R2、ReportRoom の SQLite で足りる。
+Do not create D1. `exp/` has no D1 package, and this inbox stores reports in KV, R2, and ReportRoom SQLite.
 
-## ローカルとデプロイ
+## Local development and deploy
 
-`make dev` は `wrangler dev`。KV、R2、Durable Object、Queue の骨格はローカルで、フォームから一覧に出るところまで見る。
+`make dev` runs `wrangler dev`. KV, R2, Durable Objects, and Queues can be exercised locally through "submit the form and see the row in the inbox".
 
-| 操作 | どこで見るか |
+| Action | Where to look |
 | --- | --- |
-| フォーム、受信箱、レート制限で拒否、`/known` のキャッシュ | ローカルの `curl` とブラウザ |
-| スクショの保存、報告を開いたまま要約が足されること | ローカルのシミュレーション。AI 自体はリモート |
-| AI、Vectorize、Images、Analytics | `wrangler dev --remote` かデプロイ後に、報告一件で確認 |
-| メール、Tail、Secrets Store、Hyperdrive、Dispatch | 作ったものだけデプロイ後。未作成なら `/admin` が未設定と出すことをローカルで見る |
+| Form, inbox, rate-limit rejection, `/known` cache | Local `curl` and a browser |
+| Saving the screenshot, and a summary appearing on an already open report | Local simulation. AI itself is remote |
+| AI, Vectorize, Images, Analytics | `wrangler dev --remote`, or after deploy, with one report |
+| Email, Tail, Secrets Store, Hyperdrive, Dispatch | After deploy, and only for the ones that were created. If they were not created, confirm locally that `/admin` shows them as unset |
 
-手順は、ピンの `go get` と `npm install`、必須資源の作成、三 Worker のビルド、`wrangler dev` で一件受付、`bug-inbox-tail` と `bug-inbox-mail` と本体の順で deploy、Email Routing で宛先をメール Worker へ。初回の `tail_consumers` は Tail を先に出す。
+Steps: `go get` the pin and `npm install`, create the required resources, build the three Workers, accept one report with `wrangler dev`, then deploy `bug-inbox-tail`, `bug-inbox-mail`, and the main Worker in that order. Point Email Routing at the mail Worker. The first `tail_consumers` setup needs Tail deployed first.
 
-## 追従
+## Keeping up with `exp`
 
-`exp/cloudflare` は workers-types に合わせてフィールドが増減する。受信箱が呼ぶのは上の表のメソッドだけにする。
+`exp/cloudflare` gains and loses fields as workers-types changes. The inbox calls only the methods in the tables above.
 
-このリポジトリに Renovate も Dependabot も CI も無い。追従は `bug-inbox/` に限る。
+This repo has no Renovate, Dependabot, or CI. Tracking stays inside `bug-inbox/`.
 
-- `exp/cloudflare` を含むタグが出たら、pseudo-version をそのタグへ上げる。それまで Dependabot ではピンは動かない。
-- タグのあと、Dependabot は `bug-inbox` の gomod と npm（`hono`、`wrangler`）だけ週次。
-- CI は三 Worker の `GOOS=js GOARCH=wasm go build`。デプロイはしない。
-- 週次で、ピンを変えず `@main` を一時モジュールでビルドする。失敗は「main と受信箱が離れた」印で、`go.mod` は自動で書き換えない。
-- `workers-assets-gen` とライブラリは Makefile の一つのバージョン定数を両方に渡す。
+- When a tag includes `exp/cloudflare`, move the pseudo-version to that tag. Until then, Dependabot will not move the pin.
+- After that tag, Dependabot updates only the `bug-inbox` gomod and npm packages (`hono`, `wrangler`), weekly.
+- CI is `GOOS=js GOARCH=wasm go build` for the three Workers. It does not deploy.
+- Weekly, build `@main` in a temporary module without changing the pin. A failure means main and the inbox have drifted. Do not rewrite `go.mod` automatically.
+- Pass one version constant from the Makefile to both `workers-assets-gen` and the library require.
 
-## 未決事項
+## Open questions
 
-1. 名前は「バグ受信箱」、ディレクトリは `bug-inbox` でよいか。Worker 名は `bug-inbox`、`bug-inbox-mail`、`bug-inbox-tail`。
-2. デプロイ先は Workers Paid でよいか。
-3. 開発者はオーナー一人、報告者はログイン無し、でよいか。
-4. 受信に使うドメインと、開発者に通知するアドレス。ドメインが無ければメール Worker は後回しにし、フォームだけで受信箱を完成させる。
-5. 既知の不具合ページを最初から公開するか。公開しない間、Cache は「既知」が一件以上あるときだけ使われる。
-6. 要約、返信下書き、埋め込みに使う Workers AI のモデル。次元が Vectorize の index を決める。
-7. 未返信リマインドは何時間後か。
-8. Secrets Store、Hyperdrive、Dispatch は管理画面の任意のまま進めてよいか。
-9. 受信を別 Worker のままにするか。一つの Worker にまとめるなら、`workers-go` に email の非ブロック登録が先に要る。
-10. 本番の資源 ID を `wrangler.jsonc` にコミットしない方針でよいか。
-11. Hono 経由の `*http.Request` で `cf.FromRequest` が読めるか。最初のスパイクで決める。
+1. Is the name "Bug Inbox" and the directory `bug-inbox` right? Worker names would be `bug-inbox`, `bug-inbox-mail`, and `bug-inbox-tail`.
+2. Is Workers Paid the right place to deploy?
+3. Is one developer (the owner) and reporters with no login the right shape?
+4. Which domain receives mail, and which address is notified? If there is no domain, defer the mail Worker and finish the inbox with the form only.
+5. Should the known-issues page be public from the start? Until it is public, Cache is used only once at least one report is marked known.
+6. Which Workers AI models summarize, draft replies, and embed? The dimensions decide the Vectorize index.
+7. After how many hours should the unanswered reminder fire?
+8. Should Secrets Store, Hyperdrive, and Dispatch stay optional `/admin` items?
+9. Should inbound mail stay a separate Worker? Putting it in the same Worker needs a non-blocking email register in `workers-go` first.
+10. Is the policy of not committing production resource IDs in `wrangler.jsonc` right?
+11. Can `cf.FromRequest` read `request.cf` from the Hono middleware's `*http.Request`? Decide in the first spike.
